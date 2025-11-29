@@ -206,9 +206,11 @@ export const packageQueries = {
     const stmt = db.prepare(`
       INSERT INTO packages (
         package_id, external_package_id, customer_id, tracking_number, status, billing_status,
-        weight, cost, amount_paid, payment_method, freight_type, description,
-        date_updated, updated_by, collected, deleted, archived
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        weight, cost, amount_paid, payment_method, freight_type, description, date_received,
+        date_updated, updated_by, collected, deleted, archived,
+        alt_name, reason, seller, length, width, height, cubic_feet, location,
+        invoice_url, package_image_url, pre_alert, email_sent, paid, warehouse_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     return stmt.run(
       pkg.packageId,
@@ -223,11 +225,26 @@ export const packageQueries = {
       pkg.paymentMethod || '',
       pkg.freightType || 'Air',
       pkg.description,
+      pkg.dateReceived || null,
       pkg.dateUpdated || new Date().toISOString().split('T')[0],
       pkg.updatedBy || '',
       pkg.collected ? 1 : 0,
       pkg.deleted ? 1 : 0,
-      pkg.archived ? 1 : 0
+      pkg.archived ? 1 : 0,
+      pkg.altName || null,
+      pkg.reason || null,
+      pkg.seller || null,
+      pkg.length || 0,
+      pkg.width || 0,
+      pkg.height || 0,
+      pkg.cubicFeet || 0,
+      pkg.location || null,
+      pkg.invoiceUrl || null,
+      pkg.packageImageUrl || null,
+      pkg.preAlert ? 1 : 0,
+      pkg.emailSent ? 1 : 0,
+      pkg.paid ? 1 : 0,
+      pkg.warehouseDate || null
     );
   },
 
@@ -236,7 +253,10 @@ export const packageQueries = {
       UPDATE packages
       SET tracking_number = ?, status = ?, billing_status = ?, weight = ?, cost = ?,
           amount_paid = ?, payment_method = ?, freight_type = ?, description = ?,
-          date_updated = ?, updated_by = ?, collected = ?
+          date_updated = ?, updated_by = ?, collected = ?,
+          alt_name = ?, reason = ?, seller = ?, length = ?, width = ?, height = ?,
+          cubic_feet = ?, location = ?, invoice_url = ?, package_image_url = ?,
+          pre_alert = ?, email_sent = ?, paid = ?, warehouse_date = ?, archived = ?
       WHERE package_id = ?
     `);
     return stmt.run(
@@ -252,6 +272,21 @@ export const packageQueries = {
       pkg.dateUpdated,
       pkg.updatedBy,
       pkg.collected ? 1 : 0,
+      pkg.altName || null,
+      pkg.reason || null,
+      pkg.seller || null,
+      pkg.length || 0,
+      pkg.width || 0,
+      pkg.height || 0,
+      pkg.cubicFeet || 0,
+      pkg.location || null,
+      pkg.invoiceUrl || null,
+      pkg.packageImageUrl || null,
+      pkg.preAlert ? 1 : 0,
+      pkg.emailSent ? 1 : 0,
+      pkg.paid ? 1 : 0,
+      pkg.warehouseDate || null,
+      pkg.archived ? 1 : 0,
       packageId
     );
   },
@@ -296,8 +331,8 @@ export const orderQueries = {
 
   create: (order) => {
     const stmt = db.prepare(`
-      INSERT INTO orders (id, date, customer_name, description, cost, status, merchant, method, updated_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (id, date, customer_name, description, cost, status, merchant, method, currency, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     return stmt.run(
       order.id,
@@ -308,6 +343,7 @@ export const orderQueries = {
       order.status,
       order.merchant,
       order.method,
+      order.currency || 'JMD',
       order.updatedBy
     );
   },
@@ -316,7 +352,7 @@ export const orderQueries = {
     const stmt = db.prepare(`
       UPDATE orders
       SET date = ?, customer_name = ?, description = ?, cost = ?, status = ?,
-          merchant = ?, method = ?, updated_by = ?, updated_at = datetime('now')
+          merchant = ?, method = ?, currency = ?, updated_by = ?, updated_at = datetime('now')
       WHERE id = ?
     `);
     return stmt.run(
@@ -327,6 +363,7 @@ export const orderQueries = {
       order.status,
       order.merchant,
       order.method,
+      order.currency || 'JMD',
       order.updatedBy,
       id
     );
@@ -360,10 +397,10 @@ export const shipmentLogQueries = {
 
   create: (log) => {
     const stmt = db.prepare(`
-      INSERT INTO shipment_logs (log_name, shipment_date, uploaded_by)
-      VALUES (?, ?, ?)
+      INSERT INTO shipment_logs (log_name, shipment_date, cargo_type, uploaded_by)
+      VALUES (?, ?, ?, ?)
     `);
-    return stmt.run(log.logName, log.shipmentDate, log.uploadedBy);
+    return stmt.run(log.logName, log.shipmentDate, log.cargoType || 'Air Cargo', log.uploadedBy);
   },
 
   delete: (id) => db.prepare('DELETE FROM shipment_logs WHERE id = ?').run(id),
@@ -383,16 +420,18 @@ export const shipmentItemQueries = {
 
   create: (item) => {
     const stmt = db.prepare(`
-      INSERT INTO shipment_items (shipment_log_id, package_id, customer_name, alt_name, tracking_number, weight, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO shipment_items (shipment_log_id, package_id, code, customer_name, alt_name, tracking_number, weight, description, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     return stmt.run(
       item.shipmentLogId,
       item.packageId || null,
+      item.code || null,
       item.customerName,
       item.altName || null,
       item.trackingNumber,
       item.weight || null,
+      item.description || null,
       item.status || 'pending'
     );
   },
@@ -420,6 +459,8 @@ export const shipmentItemQueries = {
 
 // Not found scans queries
 export const notFoundScanQueries = {
+  getAll: () => db.prepare('SELECT * FROM not_found_scans ORDER BY scanned_at DESC').all(),
+
   getByLogId: (logId) => db.prepare('SELECT * FROM not_found_scans WHERE shipment_log_id = ? ORDER BY scanned_at DESC').all(logId),
 
   countByLogId: (logId) => {
@@ -523,15 +564,16 @@ export const apiConfigQueries = {
   upsert: (config) => {
     const stmt = db.prepare(`
       INSERT INTO api_config (
-        id, base_url, api_key, email, password, timeout, environment,
+        id, base_url, api_key, email, password, user_id, timeout, environment,
         maintenance_mode, updated_at
       )
-      VALUES (1, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(id) DO UPDATE SET
         base_url = excluded.base_url,
         api_key = excluded.api_key,
         email = excluded.email,
         password = excluded.password,
+        user_id = excluded.user_id,
         timeout = excluded.timeout,
         environment = excluded.environment,
         maintenance_mode = excluded.maintenance_mode,
@@ -542,6 +584,7 @@ export const apiConfigQueries = {
       config.apiKey || null,
       config.email || null,
       config.password || null,
+      config.userId || null,
       config.timeout || 30000,
       config.environment || 'production',
       config.maintenanceMode ? 1 : 0

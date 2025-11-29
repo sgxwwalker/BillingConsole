@@ -62,6 +62,7 @@
         </div>
         <nav class="top-links">
           <button class="top-link" :class="{ active: currentPage === 'dashboard' }" @click="goTo('dashboard')">Dashboard</button>
+          <button class="top-link" :class="{ active: currentPage === 'packages' }" @click="goTo('packages')">Packages</button>
           <button class="top-link" :class="{ active: currentPage === 'shipment-bin' }" @click="goTo('shipment-bin')">Shipment Bin</button>
           <button class="top-link" :class="{ active: currentPage === 'orders' }" @click="goTo('orders')">SGX Order</button>
           <button class="top-link" :class="{ active: currentPage === 'summary' }" @click="goTo('summary')">Daily Summary</button>
@@ -90,8 +91,30 @@
           </div>
           <div class="top-actions">
             <button class="pill ghost" type="button" @click="refreshData">Refresh Data</button>
+            <button
+              class="pill"
+              type="button"
+              @click="syncPackagesFromCourierDepot"
+              :disabled="isSyncing"
+              :style="{ opacity: isSyncing ? 0.6 : 1 }"
+            >
+              {{ isSyncing ? '⟳ Syncing...' : '↓ Sync from API' }}
+            </button>
           </div>
         </header>
+
+        <!-- API Sync Status Message -->
+        <div v-if="apiSyncStatus" :style="{
+          padding: '12px 20px',
+          margin: '16px 0',
+          borderRadius: '8px',
+          background: apiSyncStatus.includes('✓') ? '#d1fae5' : apiSyncStatus.includes('✗') ? '#fee2e2' : '#dbeafe',
+          color: apiSyncStatus.includes('✓') ? '#065f46' : apiSyncStatus.includes('✗') ? '#991b1b' : '#1e40af',
+          fontSize: '14px',
+          fontWeight: '500',
+        }">
+          {{ apiSyncStatus }}
+        </div>
 
         <div class="grid stats-split">
           <div class="card stat">
@@ -188,12 +211,10 @@
                 <td>{{ formatCurrency(pkg.cost) }}</td>
                 <td>{{ formatCurrency(computeLateFee(pkg)) }}</td>
                 <td>
-                  <span class="tag closed" v-if="pkg.billingStatus === 'Closed'">Closed</span>
-                  <span class="tag open" v-else-if="pkg.billingStatus === 'Open'">Open</span>
-                  <span class="tag partial" v-else>Partial</span>
+                  <span class="tag">{{ pkg.status || 'Processing in Office' }}</span>
                 </td>
-                <td>{{ pkg.paymentMethod || "—" }}</td>
-                <td>{{ pkg.updatedBy || "—" }}</td>
+                <td>{{ pkg.paymentMethod }}</td>
+                <td>{{ pkg.updatedBy }}</td>
                 <td>{{ pkg.dateUpdated }}</td>
                 <td><span class="note">{{ latestNote(pkg) }}</span></td>
                 <td>
@@ -210,40 +231,317 @@
         </div>
       </section>
 
+      <section v-if="currentPage === 'packages'" class="panel full-page" id="packages">
+        <div class="packages-header">
+          <div class="packages-header-content">
+            <div>
+              <h1 class="packages-title">Packages</h1>
+              <p class="packages-subtitle">Packages synced with Courier Depot API</p>
+            </div>
+            <div class="packages-actions">
+              <button class="pill ghost" @click="apiSyncPackages" :disabled="isSyncing">
+                {{ isSyncing ? 'Syncing...' : 'Pull from SaaS' }}
+              </button>
+              <button class="pill" disabled>Push Changes (0)</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="packages-grid">
+          <!-- API Connection Status Card -->
+          <div class="packages-card packages-card-status">
+            <div class="packages-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <p class="packages-card-label">API Connection</p>
+              <p class="packages-card-value">{{ apiConfigForm.baseUrl && apiConfigForm.email ? 'Connected to Courier Depot' : 'Not Connected' }}</p>
+              <p class="packages-card-meta">{{ apiConfigForm.baseUrl || 'https://api.courierdepotja.com' }}</p>
+            </div>
+          </div>
+
+          <!-- Statistics Cards -->
+          <div class="packages-card">
+            <div class="packages-stat">
+              <p class="packages-stat-value">{{ allPackagesForPackagesPage.length }}</p>
+              <p class="packages-stat-label">Total Packages</p>
+            </div>
+          </div>
+
+          <div class="packages-card">
+            <div class="packages-stat">
+              <p class="packages-stat-value packages-stat-success">{{ syncedPackagesCount }}</p>
+              <p class="packages-stat-label">Synced</p>
+            </div>
+          </div>
+
+          <div class="packages-card">
+            <div class="packages-stat">
+              <p class="packages-stat-value packages-stat-warning">0</p>
+              <p class="packages-stat-label">Pending Push</p>
+            </div>
+          </div>
+
+          <!-- Last Sync Card -->
+          <div class="packages-card packages-card-sync">
+            <p class="packages-card-label">Last Sync</p>
+            <p class="packages-card-value">{{ lastSyncTime || 'Never' }}</p>
+            <p class="packages-card-meta">{{ lastSyncDetails || 'No sync performed yet' }}</p>
+          </div>
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="packages-controls">
+          <input
+            v-model="packagesSearchQuery"
+            type="text"
+            class="packages-search"
+            placeholder="Search by tracking, customer, or code..."
+          />
+          <div class="packages-filters">
+            <button
+              v-for="filter in packageFilters"
+              :key="filter.key"
+              class="packages-filter-btn"
+              :class="{ active: packagesActiveFilter === filter.key }"
+              @click="packagesActiveFilter = filter.key"
+            >
+              {{ filter.label }} ({{ filter.count }})
+            </button>
+          </div>
+        </div>
+
+        <!-- Packages Table -->
+        <div class="packages-table-shell">
+          <table class="packages-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" /></th>
+                <th>Package ID</th>
+                <th>Tracking</th>
+                <th>Customer</th>
+                <th>Name on Package</th>
+                <th>Courier</th>
+                <th>Description</th>
+                <th>Weight</th>
+                <th>Status</th>
+                <th>Sync Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="!filteredPackagesForPage.length" class="empty">
+                <td colspan="10">No packages yet. Click "Pull from SaaS" to sync packages from Courier Depot.</td>
+              </tr>
+              <tr v-for="pkg in filteredPackagesForPage" :key="pkg.packageId">
+                <td><input type="checkbox" /></td>
+                <td><span class="packages-id">{{ pkg.packageId }}</span></td>
+                <td><span class="packages-tracking">{{ pkg.trackingNumber }}</span></td>
+                <td>{{ pkg.customer }}</td>
+                <td>{{ pkg.altName }}</td>
+                <td>{{ pkg.courier }}</td>
+                <td>{{ pkg.description }}</td>
+                <td>{{ pkg.weight ? pkg.weight + ' lb' : '' }}</td>
+                <td><span class="packages-status">{{ pkg.status || 'Unknown' }}</span></td>
+                <td><span class="packages-sync-badge packages-sync-synced">Synced</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section v-if="currentPage === 'summary'" class="panel full-page" id="summary">
         <div class="panel-head">
           <div>
             <p class="eyebrow">Daily summary</p>
-            <h2>Collections by method</h2>
+            <h2>Daily Check</h2>
             <p class="muted">Breakdown of collected amounts and who recorded them.</p>
           </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <input
+              v-model="dailySummaryDateFilter"
+              type="date"
+              placeholder="Filter by date"
+              style="padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;"
+            />
+            <button
+              v-if="dailySummaryDateFilter"
+              class="pill ghost"
+              type="button"
+              @click="dailySummaryDateFilter = ''; activeDailyMethod = null;"
+              style="white-space: nowrap;"
+            >
+              Clear Filter
+            </button>
+          </div>
         </div>
-        <div class="table-shell compact">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Cash</th>
-                <th>POS</th>
-                <th>Transfer</th>
-                <th>Credit Card</th>
-                <th>Recorded by</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="!dailySummary.length" class="empty">
-                <td colspan="6">No collections yet today.</td>
-              </tr>
-              <tr v-for="row in dailySummary" :key="row.date">
-                <td>{{ row.date }}</td>
-                <td>{{ formatCurrency(row.cash) }}</td>
-                <td>{{ formatCurrency(row.pos) }}</td>
-                <td>{{ formatCurrency(row.transfer) }}</td>
-                <td>{{ formatCurrency(row.creditCard) }}</td>
-                <td>{{ row.users.join(', ') || '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
+
+        <!-- Payment Method Cards (show when no method is selected) -->
+        <div v-if="!activeDailyMethod" style="margin-bottom: 32px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
+            <!-- Cash Card -->
+            <div class="card clickable-card" @click="activeDailyMethod = 'cash'" style="cursor: pointer; transition: all 0.2s ease;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Cash</h4>
+                <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                  💵 Cash
+                </span>
+              </div>
+              <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+              <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1; margin-bottom: 8px;">
+                {{ formatCurrency(dailyMethodTotals.cash) }}
+              </p>
+              <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
+                {{ dailySummaryDateFilter ? 'For selected date' : 'Total collected' }}
+              </p>
+              <p style="font-size: 13px; color: #6b7280;">
+                Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
+              </p>
+            </div>
+
+            <!-- POS Card -->
+            <div class="card clickable-card" @click="activeDailyMethod = 'pos'" style="cursor: pointer; transition: all 0.2s ease;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">POS</h4>
+                <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                  💳 POS
+                </span>
+              </div>
+              <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+              <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1; margin-bottom: 8px;">
+                {{ formatCurrency(dailyMethodTotals.pos) }}
+              </p>
+              <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
+                {{ dailySummaryDateFilter ? 'For selected date' : 'Total collected' }}
+              </p>
+              <p style="font-size: 13px; color: #6b7280;">
+                Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
+              </p>
+            </div>
+
+            <!-- Transfer Card -->
+            <div class="card clickable-card" @click="activeDailyMethod = 'transfer'" style="cursor: pointer; transition: all 0.2s ease;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Transfer</h4>
+                <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                  🏦 Transfer
+                </span>
+              </div>
+              <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+              <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1; margin-bottom: 8px;">
+                {{ formatCurrency(dailyMethodTotals.transfer) }}
+              </p>
+              <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
+                {{ dailySummaryDateFilter ? 'For selected date' : 'Total collected' }}
+              </p>
+              <p style="font-size: 13px; color: #6b7280;">
+                Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
+              </p>
+            </div>
+
+            <!-- Credit Card Card -->
+            <div class="card clickable-card" @click="activeDailyMethod = 'creditCard'" style="cursor: pointer; transition: all 0.2s ease;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Credit Card</h4>
+                <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                  💎 Credit
+                </span>
+              </div>
+              <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+              <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1; margin-bottom: 8px;">
+                {{ formatCurrency(dailyMethodTotals.creditCard) }}
+              </p>
+              <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
+                {{ dailySummaryDateFilter ? 'For selected date' : 'Total collected' }}
+              </p>
+              <p style="font-size: 13px; color: #6b7280;">
+                Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Breakdown Table (show when a method is selected or view all) -->
+        <div v-if="activeDailyMethod" class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main);">
+              {{ activeDailyMethod === 'cash' ? '💵 Cash' : activeDailyMethod === 'pos' ? '💳 POS' : activeDailyMethod === 'transfer' ? '🏦 Transfer' : '💎 Credit Card' }} Breakdown
+            </h3>
+            <button class="pill ghost" type="button" @click="activeDailyMethod = null">← Back to Overview</button>
+          </div>
+
+          <!-- Time Filter Buttons -->
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;">
+            <button
+              v-for="filter in [{value: 'today', label: 'Today'}, {value: '7days', label: '7 Days'}, {value: '1month', label: '1 Month'}, {value: '90days', label: '90 Days'}, {value: 'year', label: 'Year'}]"
+              :key="filter.value"
+              @click="dailyTimeFilter = filter.value"
+              :style="{
+                padding: '8px 16px',
+                fontSize: '13px',
+                fontWeight: '600',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                background: dailyTimeFilter === filter.value ? '#3b82f6' : '#f3f4f6',
+                color: dailyTimeFilter === filter.value ? 'white' : '#6b7280',
+                transition: 'all 0.2s ease'
+              }"
+            >
+              {{ filter.label }}
+            </button>
+          </div>
+
+          <div class="table-shell compact">
+            <table v-if="activeDailyMethod !== 'creditCard'">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Recorded by</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!filteredDailySummary.length" class="empty">
+                  <td colspan="3">No collections found.</td>
+                </tr>
+                <tr v-for="row in filteredDailySummary" :key="row.date">
+                  <td><strong>{{ row.date }}</strong></td>
+                  <td style="font-size: 16px; font-weight: 600; color: #10b981;">{{ formatCurrency(row[activeDailyMethod]) }}</td>
+                  <td>{{ row.users.join(', ') || '—' }}</td>
+                </tr>
+                <tr v-if="filteredDailySummary.length > 0" style="background: #f8fafb; font-weight: 700;">
+                  <td>Total</td>
+                  <td style="font-size: 18px; color: #10b981;">
+                    {{ formatCurrency(filteredDailySummary.reduce((sum, row) => sum + row[activeDailyMethod], 0)) }}
+                  </td>
+                  <td>—</td>
+                </tr>
+              </tbody>
+            </table>
+            <table v-else>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Currency</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!filteredCreditCardOrders.length" class="empty">
+                  <td colspan="4">No credit card orders found for selected period.</td>
+                </tr>
+                <tr v-for="order in filteredCreditCardOrders" :key="order.id">
+                  <td><strong>{{ order.date }}</strong></td>
+                  <td>{{ order.customer_name || order.customerName || '—' }}</td>
+                  <td style="font-size: 16px; font-weight: 600; color: #10b981;">{{ formatCurrency(order.cost) }}</td>
+                  <td><span style="background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">{{ order.currency || 'JMD' }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -467,8 +765,118 @@
           </div>
         </div>
 
+        <!-- Settings Navigation Tabs -->
+        <div style="display: flex; gap: 8px; margin-bottom: 32px; border-bottom: 2px solid #e2e8f0; padding-bottom: 2px;">
+          <button
+            @click="activeSettingsTab = 'environment'"
+            :style="{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 20px',
+              borderRadius: '8px 8px 0 0',
+              border: 'none',
+              background: activeSettingsTab === 'environment' ? '#3b82f6' : 'transparent',
+              color: activeSettingsTab === 'environment' ? 'white' : '#64748b',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }"
+            v-if="currentUser?.role === 'full_control'"
+          >
+            <img src="/asset/icon pack/settings.png" alt="Settings" style="width: 18px; height: 18px;" />
+            <span>Environment Control</span>
+          </button>
+
+          <button
+            @click="activeSettingsTab = 'roles'"
+            :style="{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 20px',
+              borderRadius: '8px 8px 0 0',
+              border: 'none',
+              background: activeSettingsTab === 'roles' ? '#3b82f6' : 'transparent',
+              color: activeSettingsTab === 'roles' ? 'white' : '#64748b',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }"
+          >
+            <img src="/asset/icon pack/Roles .png" alt="Roles" style="width: 18px; height: 18px;" />
+            <span>Roles</span>
+          </button>
+
+          <button
+            @click="activeSettingsTab = 'users'"
+            :style="{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 20px',
+              borderRadius: '8px 8px 0 0',
+              border: 'none',
+              background: activeSettingsTab === 'users' ? '#3b82f6' : 'transparent',
+              color: activeSettingsTab === 'users' ? 'white' : '#64748b',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }"
+          >
+            <img src="/asset/icon pack/users.png" alt="Users" style="width: 18px; height: 18px;" />
+            <span>Users</span>
+          </button>
+
+          <button
+            @click="activeSettingsTab = 'api-config'"
+            :style="{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 20px',
+              borderRadius: '8px 8px 0 0',
+              border: 'none',
+              background: activeSettingsTab === 'api-config' ? '#3b82f6' : 'transparent',
+              color: activeSettingsTab === 'api-config' ? 'white' : '#64748b',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }"
+            v-if="currentUser?.role === 'full_control'"
+          >
+            <img src="/asset/icon pack/api-cloud.png" alt="API Configuration" style="width: 18px; height: 18px;" />
+            <span>API Configuration</span>
+          </button>
+
+          <button
+            @click="activeSettingsTab = 'notifications'"
+            :style="{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 20px',
+              borderRadius: '8px 8px 0 0',
+              border: 'none',
+              background: activeSettingsTab === 'notifications' ? '#3b82f6' : 'transparent',
+              color: activeSettingsTab === 'notifications' ? 'white' : '#64748b',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }"
+          >
+            <img src="/asset/icon pack/bell-notification-social-media.png" alt="Notifications" style="width: 18px; height: 18px;" />
+            <span>Notifications</span>
+          </button>
+        </div>
+
         <!-- Environment Controls Section (Maintenance Mode) -->
-        <div class="card" style="margin-bottom: 32px; border-left: 4px solid #ef4444;" v-if="currentUser?.role === 'full_control'">
+        <div class="card" style="margin-bottom: 32px; border-left: 4px solid #ef4444;" v-if="activeSettingsTab === 'environment' && currentUser?.role === 'full_control'">
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
             <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">⚙️ Environment Controls</h3>
             <p class="muted">System-wide settings and maintenance controls</p>
@@ -487,96 +895,166 @@
           </div>
         </div>
 
-        <!-- User & Role Management Section -->
-        <div class="card" style="margin-bottom: 32px;">
-          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">👥 User & Role Management</h3>
-            <p class="muted">Manage system users and their role assignments</p>
+        <!-- Roles Section with Cards -->
+        <div v-if="activeSettingsTab === 'roles'" class="card" style="margin-bottom: 32px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 24px;">
+              <!-- Full Control Card -->
+              <div @click="openRolePermissionModal('full_control')" class="role-card">
+                <!-- Header: Title and Badge -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                  <h4 style="font-size: 20px; font-weight: 600; color: #4b5563; margin: 0;">Full Control</h4>
+                  <span style="background: #ede9fe; color: #7c3aed; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Admin</span>
+                </div>
+
+                <!-- Divider -->
+                <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+
+                <!-- Large Text Label -->
+                <div style="font-size: 28px; font-weight: 700; margin-bottom: 12px; text-align: center; color: #7c3aed;">Administrator</div>
+
+                <!-- Description -->
+                <p style="font-size: 15px; color: #6b7280; text-align: center; margin-bottom: 20px;">Full system access with all permissions</p>
+
+                <!-- Bottom Stats -->
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+                  <span style="font-size: 14px; color: #9ca3af;">Total Permissions</span>
+                  <span style="font-size: 16px; font-weight: 700; color: #111827;">All</span>
+                </div>
+              </div>
+
+              <!-- Editor Card -->
+              <div @click="openRolePermissionModal('editor')" class="role-card">
+                <!-- Header: Title and Badge -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                  <h4 style="font-size: 20px; font-weight: 600; color: #4b5563; margin: 0;">Editor</h4>
+                  <span style="background: #fce7f3; color: #db2777; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Edit Access</span>
+                </div>
+
+                <!-- Divider -->
+                <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+
+                <!-- Large Text Label -->
+                <div style="font-size: 28px; font-weight: 700; margin-bottom: 12px; text-align: center; color: #db2777;">Manager</div>
+
+                <!-- Description -->
+                <p style="font-size: 15px; color: #6b7280; text-align: center; margin-bottom: 20px;">Can edit and manage content</p>
+
+                <!-- Bottom Stats -->
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+                  <span style="font-size: 14px; color: #9ca3af;">Total Permissions</span>
+                  <span style="font-size: 16px; font-weight: 700; color: #111827;">Most</span>
+                </div>
+              </div>
+
+              <!-- View Only Card -->
+              <div @click="openRolePermissionModal('view_only')" class="role-card">
+                <!-- Header: Title and Badge -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                  <h4 style="font-size: 20px; font-weight: 600; color: #4b5563; margin: 0;">View Only</h4>
+                  <span style="background: #dbeafe; color: #2563eb; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Read-Only</span>
+                </div>
+
+                <!-- Divider -->
+                <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+
+                <!-- Large Text Label -->
+                <div style="font-size: 28px; font-weight: 700; margin-bottom: 12px; text-align: center; color: #2563eb;">Users</div>
+
+                <!-- Description -->
+                <p style="font-size: 15px; color: #6b7280; text-align: center; margin-bottom: 20px;">Read-only access to view data</p>
+
+                <!-- Bottom Stats -->
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+                  <span style="font-size: 14px; color: #9ca3af;">Total Permissions</span>
+                  <span style="font-size: 16px; font-weight: 700; color: #111827;">Limited</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- Users Management -->
-          <div style="margin-bottom: 32px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h4 style="font-size: 16px; font-weight: 600; color: var(--text-main);">Users</h4>
-              <button class="pill" type="button" @click="userModals.add = true" v-if="hasPermission('admin')">+ Add New User</button>
+        <!-- Users Section -->
+        <div v-if="activeSettingsTab === 'users'" class="card" style="margin-bottom: 32px; padding: 32px;">
+            <!-- Add User Button (Top Right) -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+              <button class="pill" type="button" @click="userModals.add = true" v-if="hasPermission('admin')" style="background: #3b82f6; color: white; padding: 10px 20px;">+ Add New User</button>
             </div>
 
+            <!-- Section Header with Search -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+              <h3 style="font-size: 22px; font-weight: 600; color: #111827; margin: 0;">Users</h3>
+              <input
+                v-model="userSearchFilter"
+                type="text"
+                placeholder="Search users..."
+                style="padding: 10px 16px; border: 1px solid #d1d5db; border-radius: 8px; width: 300px; font-size: 14px;"
+              />
+            </div>
+
+            <!-- Users Table -->
             <div class="table-shell">
-              <table>
+              <table style="width: 100%;">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th v-if="hasPermission('admin')">Actions</th>
+                    <th style="text-align: left; padding: 12px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; border-bottom: 1px solid #e5e7eb;">NAME</th>
+                    <th style="text-align: left; padding: 12px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; border-bottom: 1px solid #e5e7eb;">EMAIL</th>
+                    <th style="text-align: left; padding: 12px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; border-bottom: 1px solid #e5e7eb;">ROLE</th>
+                    <th style="text-align: left; padding: 12px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; border-bottom: 1px solid #e5e7eb;">STATUS</th>
+                    <th style="text-align: left; padding: 12px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; border-bottom: 1px solid #e5e7eb;">LAST LOGIN</th>
+                    <th style="text-align: left; padding: 12px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; border-bottom: 1px solid #e5e7eb;">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="user in employees" :key="user.id">
-                    <td><strong>{{ user.name }}</strong></td>
-                    <td>{{ user.email }}</td>
-                    <td>
-                      <span class="tag" :class="{
-                        'primary': user.role === 'full_control',
-                        'secondary': user.role === 'editor',
-                        '': user.role === 'view_only'
+                  <tr v-if="!filteredEmployees.length" class="empty">
+                    <td colspan="6" style="text-align: center; padding: 32px; color: #9ca3af;">No users found.</td>
+                  </tr>
+                  <tr v-for="user in filteredEmployees" :key="user.id" style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 16px 12px;">
+                      <strong style="font-size: 14px; color: #111827;">{{ user.name }}</strong>
+                    </td>
+                    <td style="padding: 16px 12px;">
+                      <span style="font-size: 14px; color: #6b7280;">{{ user.email }}</span>
+                    </td>
+                    <td style="padding: 16px 12px;">
+                      <span :style="{
+                        background: user.role === 'full_control' ? '#fef3c7' : user.role === 'editor' ? '#ede9fe' : '#dcfce7',
+                        color: user.role === 'full_control' ? '#92400e' : user.role === 'editor' ? '#6b21a8' : '#166534',
+                        padding: '6px 12px',
+                        borderRadius: '12px',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        display: 'inline-block'
                       }">
-                        {{ user.role }}
+                        {{ user.role === 'full_control' ? 'Full Control' : user.role === 'editor' ? 'Editor' : 'View Only' }}
                       </span>
                     </td>
-                    <td>
-                      <span class="tag" :class="user.active === 1 ? 'success' : 'danger'">
+                    <td style="padding: 16px 12px;">
+                      <span :style="{
+                        background: user.active === 1 ? '#dcfce7' : '#fee2e2',
+                        color: user.active === 1 ? '#166534' : '#991b1b',
+                        padding: '6px 12px',
+                        borderRadius: '12px',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        display: 'inline-block'
+                      }">
                         {{ user.active === 1 ? 'Active' : 'Inactive' }}
                       </span>
                     </td>
-                    <td v-if="hasPermission('admin')">
-                      <div class="actions">
-                        <button class="pill small ghost" type="button" @click="openEditUser(user)">Edit</button>
-                        <button v-if="user.active === 1" class="pill small ghost" type="button" @click="deactivateUser(user.id)">Deactivate</button>
-                        <button v-else class="pill small ghost" type="button" @click="activateUser(user.id)">Activate</button>
-                        <button class="pill small ghost" type="button" @click="openPasswordReset(user)">Reset Password</button>
-                        <button class="pill small danger" type="button" @click="openDeleteUser(user)">Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Roles Management -->
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h4 style="font-size: 16px; font-weight: 600; color: var(--text-main);">Roles</h4>
-              <button class="pill" type="button" @click="roleModals.add = true" v-if="hasPermission('admin')">+ Create New Role</button>
-            </div>
-
-            <div class="table-shell">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Role Name</th>
-                    <th>Description</th>
-                    <th>Type</th>
-                    <th v-if="hasPermission('admin')">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="role in roles" :key="role.id">
-                    <td><strong>{{ role.name }}</strong></td>
-                    <td>{{ role.description || '—' }}</td>
-                    <td>
-                      <span class="tag" :class="role.is_system ? 'primary' : 'secondary'">
-                        {{ role.is_system ? 'System' : 'Custom' }}
+                    <td style="padding: 16px 12px;">
+                      <span style="font-size: 14px; color: #6b7280;">
+                        {{ new Date(user.lastLogin).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) }}
                       </span>
                     </td>
-                    <td v-if="hasPermission('admin')">
-                      <div class="actions">
-                        <button class="pill small ghost" type="button" @click="openRolePermissions(role)">Permissions</button>
-                        <button v-if="!role.is_system" class="pill small ghost" type="button" @click="openEditRole(role)">Edit</button>
-                        <button class="pill small ghost" type="button" @click="openDuplicateRole(role)">Duplicate</button>
-                        <button v-if="!role.is_system" class="pill small danger" type="button" @click="openDeleteRole(role)">Delete</button>
+                    <td style="padding: 16px 12px;">
+                      <div v-if="hasPermission('admin')" class="kebab-menu-container">
+                        <button class="kebab-btn" @click="toggleUserKebab(user.id)" @blur="setTimeout(() => closeUserKebab(user.id), 200)" type="button" aria-label="User actions">
+                          ⋮
+                        </button>
+                        <div v-if="openUserKebabId === user.id" class="kebab-dropdown">
+                          <button @click="openEditUser(user); closeUserKebab(user.id)">Edit</button>
+                          <button @click="toggleUserLock(user); closeUserKebab(user.id)">{{ user.active === 1 ? 'Deactivate' : 'Activate' }}</button>
+                          <button class="danger" @click="openDeleteUser(user); closeUserKebab(user.id)">Delete</button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -584,66 +1062,89 @@
               </table>
             </div>
           </div>
-        </div>
 
         <!-- External API Configuration (Only for full_control users) -->
-        <div v-if="currentUser?.role === 'full_control'" class="card" style="margin-bottom: 32px;">
+        <div v-if="activeSettingsTab === 'api-config' && currentUser?.role === 'full_control'" class="card" style="margin-bottom: 32px;">
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">🔌 External API Configuration</h3>
-            <p class="muted">Configure external platform integration and authentication</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">🔌 Courier Depot API Configuration</h3>
+                <p class="muted">Configure Courier Depot SaaS platform integration and authentication</p>
+              </div>
+              <button
+                v-if="!isEditingApiConfig"
+                class="pill ghost"
+                type="button"
+                @click="isEditingApiConfig = true"
+              >
+                🔒 Edit Credentials
+              </button>
+            </div>
           </div>
 
           <div class="form-grid">
-            <label>
-              <span class="input-label">API Base URL</span>
-              <input v-model="apiConfigForm.baseUrl" type="url" placeholder="https://api.example.com" />
+            <label style="grid-column: 1 / -1;">
+              <span class="input-label">🌐 Authentication Endpoint</span>
+              <input
+                v-model="apiConfigForm.baseUrl"
+                type="url"
+                placeholder="https://api.courierdepotja.com/api/auth/signin"
+                :readonly="!isEditingApiConfig"
+                :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
+              />
+              <p class="muted" style="margin-top: 6px; font-size: 13px;">Full endpoint URL for API authentication</p>
             </label>
 
             <label>
-              <span class="input-label">API Key</span>
+              <span class="input-label">📧 Authentication Email</span>
+              <input
+                v-model="apiConfigForm.email"
+                type="email"
+                placeholder="your-email@gmail.com"
+                :readonly="!isEditingApiConfig"
+                :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
+              />
+            </label>
+
+            <label>
+              <span class="input-label">🔒 Authentication Password</span>
               <div style="position: relative;">
-                <input v-model="apiConfigForm.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="Enter API key" />
-                <button type="button" @click="showApiKey = !showApiKey"
-                  style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #64748b;">
-                  {{ showApiKey ? '👁️' : '👁️‍🗨️' }}
-                </button>
-              </div>
-            </label>
-
-            <label>
-              <span class="input-label">Authentication Email</span>
-              <input v-model="apiConfigForm.email" type="email" placeholder="api@example.com" />
-            </label>
-
-            <label>
-              <span class="input-label">Authentication Password</span>
-              <div style="position: relative;">
-                <input v-model="apiConfigForm.password" :type="showApiPassword ? 'text' : 'password'" placeholder="Enter password" />
+                <input
+                  v-model="apiConfigForm.password"
+                  :type="showApiPassword ? 'text' : 'password'"
+                  placeholder="Enter password"
+                  style="padding-right: 50px;"
+                  :readonly="!isEditingApiConfig"
+                  :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
+                />
                 <button type="button" @click="showApiPassword = !showApiPassword"
-                  style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #64748b;">
+                  style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #64748b; font-size: 18px;">
                   {{ showApiPassword ? '👁️' : '👁️‍🗨️' }}
                 </button>
               </div>
             </label>
 
             <label>
-              <span class="input-label">Request Timeout (ms)</span>
-              <input v-model.number="apiConfigForm.timeout" type="number" min="1000" step="1000" />
-            </label>
-
-            <label>
-              <span class="input-label">Environment</span>
-              <select v-model="apiConfigForm.environment">
-                <option value="production">Production</option>
-                <option value="sandbox">Sandbox</option>
-              </select>
+              <span class="input-label">👤 User ID</span>
+              <input
+                v-model="apiConfigForm.userId"
+                type="text"
+                placeholder="970"
+                :readonly="!isEditingApiConfig"
+                :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
+              />
+              <p class="muted" style="margin-top: 6px; font-size: 13px;">Your Courier Depot user ID for package retrieval</p>
             </label>
           </div>
 
-          <div style="display: flex; gap: 12px; margin-top: 24px;">
-            <button class="pill" type="button" @click="saveApiConfig">Save Configuration</button>
-            <button class="pill ghost" type="button" @click="testApiConnection">Test Connection</button>
-            <button class="pill ghost" type="button" @click="triggerApiSync">Sync Now</button>
+          <div v-if="isEditingApiConfig" style="display: flex; gap: 12px; margin-top: 24px;">
+            <button class="pill" type="button" @click="saveApiConfig">💾 Save Configuration</button>
+            <button class="pill ghost" type="button" @click="isEditingApiConfig = false">Cancel</button>
+          </div>
+
+          <div v-else style="display: flex; gap: 12px; margin-top: 24px;">
+            <button class="pill ghost" type="button" @click="testApiConnection">🔍 Test Connection</button>
+            <button class="pill ghost" type="button" @click="triggerApiSync">🔄 Sync Now</button>
           </div>
 
           <p v-if="apiTestMessage" :style="{ marginTop: '16px', color: apiTestStatus === 'success' ? '#10b981' : apiTestStatus === 'error' ? '#ef4444' : '#64748b' }">
@@ -685,7 +1186,7 @@
         </div>
 
         <!-- Notification Preferences (Keep existing) -->
-        <div class="card">
+        <div class="card" v-if="activeSettingsTab === 'notifications'">
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
             <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">🔔 Notification Preferences</h3>
             <p class="muted">Configure how you want to receive notifications</p>
@@ -722,199 +1223,189 @@
           <div>
             <p class="eyebrow">Shipment Management</p>
             <h2>Shipment Bin</h2>
-            <p class="muted">Manage shipment logs, scan incoming packages, and organize inventory</p>
+            <p class="muted">{{ activeShipmentLogId ? 'Scan and manage packages in the active shipment log' : 'Select a shipment log to begin scanning' }}</p>
           </div>
-          <button class="pill" type="button" @click="openShipmentUpload" v-if="hasPermission('manageShipments')">+ Upload New Shipment Log</button>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button v-if="activeShipmentLogId" class="pill ghost" type="button" @click="activeShipmentLogId = ''; shipmentItems = []; scanMessage = ''">
+              ← Back to All Logs
+            </button>
+            <button v-if="hasPermission('manageShipments')" class="pill" type="button" @click="openShipmentUpload">
+              + Upload New Log
+            </button>
+            <button v-if="activeShipmentLogId && hasPermission('manageShipments')" class="pill" type="button" @click="openShipmentEdit(shipmentLogs.find(l => l.id === activeShipmentLogId))">
+              Edit
+            </button>
+            <button v-if="activeShipmentLogId && hasPermission('manageShipments')" class="pill danger" type="button" @click="openShipmentDelete(shipmentLogs.find(l => l.id === activeShipmentLogId))">
+              Delete Log
+            </button>
+          </div>
         </div>
 
-        <!-- Section 1: Manage All Shipment Logs -->
-        <div v-if="shipmentLogs.length > 0" class="card" style="margin-bottom: 32px;">
-          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
+        <!-- CARDS VIEW: Show when no active log is selected -->
+        <div v-if="!activeShipmentLogId && shipmentLogs.length > 0">
+          <div style="margin-bottom: 20px;">
             <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">📦 All Shipment Logs</h3>
-            <p class="muted">View, edit, or delete uploaded shipment logs</p>
+            <p class="muted">Click on a log to start scanning packages</p>
           </div>
-          <div class="table-shell compact">
-            <table>
-              <thead>
-                <tr>
-                  <th>Log Name</th>
-                  <th>Shipment Date</th>
-                  <th>Items</th>
-                  <th>Uploaded By</th>
-                  <th>Created</th>
-                  <th v-if="hasPermission('manageShipments')">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="log in shipmentLogs" :key="log.id">
-                  <td><strong>{{ log.log_name }}</strong></td>
-                  <td>{{ log.shipment_date }}</td>
-                  <td>
-                    <span class="tag secondary">{{ getLogItemCount(log.id) }} items</span>
-                  </td>
-                  <td>{{ log.uploaded_by || '—' }}</td>
-                  <td>{{ new Date(log.created_at).toLocaleDateString() }}</td>
-                  <td v-if="hasPermission('manageShipments')">
-                    <div class="actions">
-                      <button class="pill small ghost" type="button" @click="openShipmentEdit(log)">Edit</button>
-                      <button class="pill small danger" type="button" @click="openShipmentDelete(log)">Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+            <div v-for="log in shipmentLogs" :key="log.id"
+                 class="card clickable-card"
+                 @click="selectShipmentLog(log.id)"
+                 style="cursor: pointer; transition: all 0.2s ease;">
+
+              <!-- Header: Title and Cargo Badge -->
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">
+                  {{ log.log_name }}
+                </h4>
+                <span :style="{
+                  background: '#f3f4f6',
+                  color: '#6b7280',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  padding: '6px 12px',
+                  borderRadius: '6px'
+                }">
+                  {{ log.cargo_type === 'Ocean Cargo' ? '🚢' : log.cargo_type === 'China Cargo' ? '🇨🇳' : '✈️' }} {{ log.cargo_type || 'Air Cargo' }}
+                </span>
+              </div>
+
+              <!-- Divider -->
+              <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+
+              <!-- Large Number -->
+              <div style="margin-bottom: 8px;">
+                <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1;">
+                  {{ getLogItemCount(log.id) }}
+                </p>
+              </div>
+
+              <!-- Supporting Text -->
+              <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
+                Shipment date: {{ log.shipment_date }}
+              </p>
+
+              <!-- Bottom Info Row -->
+              <div>
+                <p style="font-size: 13px; color: #6b7280;">
+                  Uploaded by <span style="font-weight: 600; color: #374151;">{{ log.uploaded_by || 'Unknown' }}</span>
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Section 2: Scanning Operations -->
-        <div v-if="shipmentLogs.length > 0" style="margin-bottom: 32px;">
-          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">🔍 Scanning Operations</h3>
-            <p class="muted">Select a shipment log and scan packages as they arrive</p>
+        <!-- ACTIVE LOG VIEW: Show when a log is selected -->
+        <div v-if="activeShipmentLogId">
+          <!-- Shipment Log Header with Details -->
+          <div class="card" style="margin-bottom: 24px; padding: 20px; background: linear-gradient(135deg, #002d62 0%, #00aeef 100%); color: white;">
+            <h2 style="font-size: 28px; font-weight: 700; margin-bottom: 12px; color: white;">
+              ✈️ {{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.log_name || 'Shipment Log' }}
+            </h2>
+            <div style="display: flex; gap: 24px; font-size: 14px; opacity: 0.95;">
+              <span>📅 {{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.shipment_date }}</span>
+              <span>👤 {{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.uploaded_by || 'Unknown' }}</span>
+              <span>{{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.cargo_type === 'Ocean Cargo' ? '🚢' : shipmentLogs.find(l => l.id === activeShipmentLogId)?.cargo_type === 'China Cargo' ? '🇨🇳' : '✈️' }} {{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.cargo_type || 'Air Cargo' }}</span>
+            </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-            <!-- Active Shipment Log Selector -->
-            <div class="card">
-              <label>
-                <span class="input-label">Active Shipment Log</span>
-                <select v-model="activeShipmentLogId" @change="loadShipmentItems">
-                  <option value="">-- Select a shipment log --</option>
-                  <option v-for="log in shipmentLogs" :key="log.id" :value="log.id">
-                    {{ log.log_name }} - {{ log.shipment_date }}
-                  </option>
-                </select>
-              </label>
-            </div>
-
-            <!-- Scanning Interface -->
-            <div class="card" :class="{ 'disabled-card': !activeShipmentLogId || !hasPermission('scanPackages') }">
-              <p class="input-label">Scan Tracking Number</p>
-              <div class="form-grid">
-                <input
-                  ref="scanInput"
-                  v-model="scanTrackingNumber"
-                  @keydown.enter="scanPackage"
-                  type="text"
-                  placeholder="Scan or enter tracking number..."
-                  style="font-size: 16px; padding: 16px;"
-                  :disabled="!activeShipmentLogId || !hasPermission('scanPackages')"
-                />
-                <button class="pill" type="button" @click="scanPackage" :disabled="!activeShipmentLogId || !hasPermission('scanPackages')">Scan</button>
-              </div>
-              <p v-if="scanMessage" :class="{'muted': scanStatus === 'info', 'error-text': scanStatus === 'error'}" style="margin-top: 12px;">
+          <!-- Two-Column Layout: Scan Card (Left) + Shipment Info (Right) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+            <!-- LEFT: Scan Tracking Numbers Card -->
+            <div class="card" :class="{ 'disabled-card': !hasPermission('scanPackages') }" style="padding: 24px; border: 2px dashed #cbd5e1;">
+              <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 16px; color: var(--text-main);">
+                📱 Scan Tracking Numbers
+              </h3>
+              <p class="muted" style="margin-bottom: 16px; font-size: 13px;">Scan tracking number or press Enter...</p>
+              <input
+                ref="scanInput"
+                v-model="scanTrackingNumber"
+                @keydown.enter="scanPackage"
+                type="text"
+                placeholder="Scan or enter tracking number..."
+                style="font-size: 15px; padding: 14px; width: 100%; margin-bottom: 12px; border-radius: 6px; border: 1px solid #cbd5e1;"
+                :disabled="!hasPermission('scanPackages')"
+              />
+              <button class="pill" type="button" @click="scanPackage" :disabled="!hasPermission('scanPackages')" style="width: 100%; padding: 14px; font-size: 16px; font-weight: 600;">
+                Scan Package
+              </button>
+              <p v-if="scanMessage" :class="{'muted': scanStatus === 'info', 'error-text': scanStatus === 'error'}" style="margin-top: 12px; font-weight: 600; text-align: center;">
                 {{ scanMessage }}
               </p>
             </div>
-          </div>
-        </div>
 
-        <!-- Statistics -->
-        <div v-if="activeShipmentLogId" class="stats-split" style="margin-bottom: 24px;">
-          <div class="card stat">
-            <p class="eyebrow">Total Items</p>
-            <h3>{{ shipmentStats.total }}</h3>
-          </div>
-          <div class="card stat">
-            <p class="eyebrow">Received</p>
-            <h3>{{ shipmentStats.received }}</h3>
-          </div>
-          <div class="card stat">
-            <p class="eyebrow">Pending</p>
-            <h3>{{ shipmentStats.pending }}</h3>
-          </div>
-          <div class="card stat">
-            <p class="eyebrow">Not Found</p>
-            <h3>{{ shipmentStats.notFound }}</h3>
-          </div>
-        </div>
-
-        <!-- Not Found Scans Section (Collapsible) -->
-        <div v-if="activeShipmentLogId && notFoundScans.length > 0" style="margin-bottom: 32px;">
-          <div class="not-found-collapsible-card" :class="{ expanded: showNotFoundScans }">
-            <div class="not-found-header" @click="showNotFoundScans = !showNotFoundScans">
-              <div class="not-found-header-content">
-                <div class="not-found-icon">❌</div>
-                <div>
-                  <h3 class="not-found-title">Not Found Scans</h3>
-                  <p class="not-found-subtitle">{{ notFoundScans.length }} tracking {{ notFoundScans.length === 1 ? 'number' : 'numbers' }} not found in this log</p>
+            <!-- RIGHT: Shipment Info Card with 2x2 Grid -->
+            <div class="card" style="padding: 24px; border: 2px solid #fbbf24;">
+              <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 16px; color: var(--text-main);">
+                📊 Shipment Info
+              </h3>
+              <!-- 2x2 Statistics Grid -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <!-- Total Packages -->
+                <div style="text-align: center; padding: 16px; background: #f8f9fb; border-radius: 8px;">
+                  <p class="muted" style="font-size: 12px; margin-bottom: 6px;">Total Packages</p>
+                  <h2 style="font-size: 32px; font-weight: 700; color: var(--sgx-blue);">{{ shipmentStats.total }}</h2>
+                </div>
+                <!-- Packages Received -->
+                <div style="text-align: center; padding: 16px; background: #f8f9fb; border-radius: 8px;">
+                  <p class="muted" style="font-size: 12px; margin-bottom: 6px;">Packages Received</p>
+                  <h2 style="font-size: 32px; font-weight: 700; color: #10b981;">{{ shipmentStats.received }}</h2>
+                </div>
+                <!-- Verification Pending -->
+                <div style="text-align: center; padding: 16px; background: #f8f9fb; border-radius: 8px;">
+                  <p class="muted" style="font-size: 12px; margin-bottom: 6px;">Verification Pending</p>
+                  <h2 style="font-size: 32px; font-weight: 700; color: #f59e0b;">{{ shipmentStats.pending }}</h2>
+                </div>
+                <!-- # of Couriers -->
+                <div style="text-align: center; padding: 16px; background: #f8f9fb; border-radius: 8px;">
+                  <p class="muted" style="font-size: 12px; margin-bottom: 6px;"># of Couriers</p>
+                  <h2 style="font-size: 32px; font-weight: 700; color: var(--sgx-blue);">{{ shipmentStats.couriers }}</h2>
                 </div>
               </div>
-              <div class="not-found-toggle">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-            </div>
-            <div class="not-found-content" v-show="showNotFoundScans">
-              <div class="table-shell compact">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Tracking Number</th>
-                      <th>Scanned At</th>
-                      <th>Scanned By</th>
-                      <th>Shipment Log</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="scan in notFoundScans" :key="scan.id">
-                      <td><strong>{{ scan.tracking_number }}</strong></td>
-                      <td>{{ new Date(scan.scanned_at).toLocaleString() }}</td>
-                      <td>{{ scan.scanned_by || '—' }}</td>
-                      <td>
-                        <span class="tag secondary">
-                          {{ shipmentLogs.find(log => log.id === scan.shipment_log_id)?.log_name || 'Unknown' }}
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Section 3: Package Inventory -->
-        <div v-if="activeShipmentLogId && shipmentItems.length > 0">
-          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">📋 Package Inventory</h3>
-            <p class="muted">View and manage all packages in the selected shipment log</p>
-          </div>
+          <!-- Package Table Section -->
+          <div v-if="shipmentItems.length > 0">
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 16px;">
+              📊 Shipment Data by Courier
+            </h3>
 
-          <!-- Search Bar -->
-          <div class="search-box" style="margin-bottom: 16px; width: 100%;">
-            <input
-              v-model="shipmentSearchQuery"
-              type="text"
-              placeholder="Search by customer, tracking, package ID, weight, status..."
-              style="font-size: 14px; width: 100%;"
-            />
-          </div>
+            <!-- Search Bar -->
+            <div class="search-box" style="margin-bottom: 16px; width: 100%;">
+              <input
+                v-model="shipmentSearchQuery"
+                type="text"
+                placeholder="Search by ID, Customer Name, or Tracking Number..."
+                style="font-size: 14px; width: 100%;"
+              />
+            </div>
 
-          <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-            <button
-              class="pill"
-              :class="{'secondary': shipmentFilter === 'all', 'ghost': shipmentFilter !== 'all'}"
-              @click="shipmentFilter = 'all'"
-            >
-              All ({{ shipmentStats.total }})
-            </button>
-            <button
-              class="pill"
-              :class="{'secondary': shipmentFilter === 'pending', 'ghost': shipmentFilter !== 'pending'}"
-              @click="shipmentFilter = 'pending'"
-            >
-              Pending ({{ shipmentStats.pending }})
-            </button>
-            <button
-              class="pill"
-              :class="{'secondary': shipmentFilter === 'received', 'ghost': shipmentFilter !== 'received'}"
-              @click="shipmentFilter = 'received'"
-            >
-              Received ({{ shipmentStats.received }})
-            </button>
-          </div>
+            <!-- Filter Buttons -->
+            <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+              <select v-model="shipmentCourierFilter" style="padding: 8px 16px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px; background: white;">
+                <option value="">All Couriers</option>
+                <option v-for="courier in uniqueCourierCodes" :key="courier" :value="courier">{{ courier }}</option>
+              </select>
+              <select
+                v-model="shipmentFilter"
+                style="padding: 8px 16px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px; background: white;"
+              >
+                <option value="all">All Status</option>
+                <option value="received">Received</option>
+                <option value="pending">Pending</option>
+                <option value="not_found">Not Found</option>
+              </select>
+            </div>
+
+            <!-- Package List Header with Add Button -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h4 style="font-size: 16px; font-weight: 700; color: var(--text-main);">Package List</h4>
+              <button v-if="hasPermission('manageShipments')" class="pill" type="button" @click="openAddShipmentItem" style="font-size: 14px; padding: 8px 16px;">
+                + Add Package
+              </button>
+            </div>
 
           <div class="table-shell">
             <table>
@@ -924,8 +1415,12 @@
                     ID
                     <span v-if="shipmentSortColumn === 'package_id'">{{ shipmentSortDirection === 'asc' ? '▲' : '▼' }}</span>
                   </th>
+                  <th @click="sortShipmentTable('code')" style="cursor: pointer; user-select: none;">
+                    Code
+                    <span v-if="shipmentSortColumn === 'code'">{{ shipmentSortDirection === 'asc' ? '▲' : '▼' }}</span>
+                  </th>
                   <th @click="sortShipmentTable('customer_name')" style="cursor: pointer; user-select: none;">
-                    User Name
+                    Customer
                     <span v-if="shipmentSortColumn === 'customer_name'">{{ shipmentSortDirection === 'asc' ? '▲' : '▼' }}</span>
                   </th>
                   <th @click="sortShipmentTable('alt_name')" style="cursor: pointer; user-select: none;">
@@ -933,256 +1428,94 @@
                     <span v-if="shipmentSortColumn === 'alt_name'">{{ shipmentSortDirection === 'asc' ? '▲' : '▼' }}</span>
                   </th>
                   <th @click="sortShipmentTable('tracking_number')" style="cursor: pointer; user-select: none;">
-                    Tracking Number
+                    Tracking
                     <span v-if="shipmentSortColumn === 'tracking_number'">{{ shipmentSortDirection === 'asc' ? '▲' : '▼' }}</span>
                   </th>
                   <th @click="sortShipmentTable('weight')" style="cursor: pointer; user-select: none;">
-                    Weight (LB)
+                    Weight
                     <span v-if="shipmentSortColumn === 'weight'">{{ shipmentSortDirection === 'asc' ? '▲' : '▼' }}</span>
                   </th>
+                  <th>Description</th>
                   <th @click="sortShipmentTable('status')" style="cursor: pointer; user-select: none;">
                     Status
                     <span v-if="shipmentSortColumn === 'status'">{{ shipmentSortDirection === 'asc' ? '▲' : '▼' }}</span>
-                  </th>
-                  <th @click="sortShipmentTable('scanned_by')" style="cursor: pointer; user-select: none;">
-                    Scanned By
-                    <span v-if="shipmentSortColumn === 'scanned_by'">{{ shipmentSortDirection === 'asc' ? '▲' : '▼' }}</span>
-                  </th>
-                  <th @click="sortShipmentTable('scanned_at')" style="cursor: pointer; user-select: none;">
-                    Scanned At
-                    <span v-if="shipmentSortColumn === 'scanned_at'">{{ shipmentSortDirection === 'asc' ? '▲' : '▼' }}</span>
                   </th>
                   <th v-if="hasPermission('editShipmentItems') || hasPermission('moveShipmentItems')">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="item in filteredShipmentItems" :key="item.id">
-                  <td>{{ item.package_id || '—' }}</td>
+                  <td>{{ item.package_id || item.id }}</td>
+                  <td>
+                    <span class="tag" style="background: var(--sgx-blue); color: white; font-weight: 600;">
+                      {{ item.code || item.courier_code || 'RSC' }}
+                    </span>
+                  </td>
                   <td>{{ item.customer_name }}</td>
-                  <td>{{ item.alt_name || '—' }}</td>
+                  <td>{{ item.alt_name }}</td>
                   <td><strong>{{ item.tracking_number }}</strong></td>
-                  <td>{{ item.weight || '—' }}</td>
+                  <td>{{ item.weight ? item.weight + ' lb' : '' }}</td>
+                  <td>{{ item.description }}</td>
                   <td>
                     <select
                       v-if="hasPermission('editShipmentItems')"
                       :value="item.status"
                       @change="updateShipmentItemStatus(item.id, $event.target.value)"
-                      style="padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 13px;"
+                      :style="{
+                        padding: '10px 16px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '14px',
+                        fontWeight: '700',
+                        color: 'white',
+                        cursor: 'pointer',
+                        minWidth: '140px',
+                        backgroundColor: item.status === 'received' ? '#10b981' : item.status === 'pending' ? '#eab308' : '#ef4444'
+                      }"
                     >
-                      <option value="received">Received</option>
-                      <option value="pending">Pending</option>
-                      <option value="not_found">Not Found</option>
+                      <option value="received">✓ Received</option>
+                      <option value="pending">⏳ Pending</option>
+                      <option value="not_found">✗ Not Found</option>
                     </select>
-                    <span v-else class="tag" :class="item.status === 'received' ? 'closed' : 'open'">
-                      {{ item.status }}
+                    <span v-else class="tag" :style="{
+                      background: item.status === 'received' ? '#10b981' : item.status === 'pending' ? '#f59e0b' : '#ef4444',
+                      color: 'white',
+                      fontWeight: '600'
+                    }">
+                      {{ item.status === 'received' ? 'Received' : item.status === 'pending' ? 'Pending' : 'Not Found' }}
                     </span>
                   </td>
-                  <td>{{ item.scanned_by || '—' }}</td>
-                  <td>{{ item.scanned_at ? new Date(item.scanned_at).toLocaleString() : '—' }}</td>
                   <td v-if="hasPermission('editShipmentItems') || hasPermission('moveShipmentItems')">
-                    <div class="actions">
-                      <button v-if="hasPermission('editShipmentItems')" class="pill small ghost" type="button" @click="openItemEdit(item)">Edit</button>
-                      <button v-if="hasPermission('moveShipmentItems')" class="pill small secondary" type="button" @click="openItemMove(item)">Move</button>
+                    <div class="kebab-menu-container">
+                      <button class="kebab-btn" @click="toggleShipmentItemKebab(item.id)" @blur="setTimeout(() => closeShipmentItemKebab(item.id), 200)" type="button" aria-label="Item actions">
+                        ⋮
+                      </button>
+                      <div v-if="openShipmentItemKebabId === item.id" class="kebab-dropdown">
+                        <button v-if="hasPermission('editShipmentItems')" @click="openItemEdit(item); closeShipmentItemKebab(item.id)">Edit</button>
+                        <button v-if="hasPermission('moveShipmentItems')" @click="openItemMove(item); closeShipmentItemKebab(item.id)">Move</button>
+                        <button v-if="hasPermission('manageShipments')" class="danger" @click="deleteShipmentItem(item); closeShipmentItemKebab(item.id)">Delete</button>
+                      </div>
                     </div>
                   </td>
                 </tr>
                 <tr v-if="filteredShipmentItems.length === 0" class="empty">
-                  <td colspan="9">No packages found</td>
+                  <td colspan="8">No packages found</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
+      </div>
 
-        <div v-else-if="shipmentLogs.length === 0" class="card">
+      <div v-else-if="shipmentLogs.length === 0" class="card">
           <p class="muted" style="text-align: center; padding: 40px 0;">
             No shipment logs found. Upload a shipment log to get started.
           </p>
         </div>
       </section>
-
-      <section v-if="currentPage === 'settings'" class="panel full-page" id="settings">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Settings</p>
-            <h2>System Configuration</h2>
-            <p class="muted">Manage users, roles, and system integrations</p>
-          </div>
-        </div>
-
-        <!-- User & Role Management Section -->
-        <div style="margin-bottom: 48px;">
-          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">👥 User & Role Management</h3>
-              <p class="muted">Manage users, assign roles and permissions for dashboard users</p>
-            </div>
-            <button class="pill" type="button" @click="openUserAdd">Add new user</button>
-          </div>
-          <div class="table-shell compact">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Permissions</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="user in employees" :key="user.id">
-                  <td>{{ user.name }}</td>
-                  <td>{{ user.email }}</td>
-                  <td>
-                    <select v-model="user.role" @change="updateUserRole(user.id, user.role)">
-                      <option value="full_control">Full Control</option>
-                      <option value="editor">Editor</option>
-                      <option value="view_only">View Only</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                  </td>
-                  <td>
-                    <button class="pill small ghost" type="button" @click="openPermissions(user)">Configure</button>
-                  </td>
-                  <td>
-                    <div class="actions">
-                      <button class="pill small ghost" type="button" @click="openUserEdit(user)">Edit</button>
-                      <button class="pill small danger" type="button" @click="openUserDelete(user)" :disabled="user.id === currentUser?.id">Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- External API Configuration Section (Admin Only) -->
-        <div v-if="currentUser?.role === 'full_control'">
-          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">🔌 External API Configuration</h3>
-            <p class="muted">Configure external warehouse platform integration (Admin Only - Restricted Access)</p>
-          </div>
-
-          <div class="card" style="background: linear-gradient(135deg, rgba(0, 174, 239, 0.03), rgba(0, 45, 98, 0.02)); border: 2px solid rgba(0, 174, 239, 0.15);">
-            <div class="form-grid">
-              <label style="grid-column: 1 / -1;">
-                <span class="input-label">🌐 API Base URL</span>
-                <input
-                  v-model="apiConfig.baseUrl"
-                  type="url"
-                  placeholder="https://api.warehouse.com"
-                  @input="apiConfigModified = true"
-                />
-              </label>
-
-              <label style="grid-column: 1 / -1;">
-                <span class="input-label">🔑 API Key / Token</span>
-                <div style="position: relative;">
-                  <input
-                    v-model="apiConfig.apiKey"
-                    :type="showApiKey ? 'text' : 'password'"
-                    placeholder="Enter API key or token"
-                    @input="apiConfigModified = true"
-                    style="padding-right: 100px;"
-                  />
-                  <button
-                    type="button"
-                    class="pill small ghost"
-                    @click="showApiKey = !showApiKey"
-                    style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%);"
-                  >
-                    {{ showApiKey ? 'Hide' : 'Show' }}
-                  </button>
-                </div>
-              </label>
-
-              <label>
-                <span class="input-label">⏱️ Request Timeout (ms)</span>
-                <input
-                  v-model.number="apiConfig.timeout"
-                  type="number"
-                  placeholder="30000"
-                  min="1000"
-                  max="120000"
-                  @input="apiConfigModified = true"
-                />
-              </label>
-
-              <label>
-                <span class="input-label">🌍 Environment</span>
-                <select v-model="apiConfig.environment" @change="apiConfigModified = true">
-                  <option value="production">Production</option>
-                  <option value="sandbox">Sandbox / Testing</option>
-                </select>
-              </label>
-            </div>
-
-            <!-- API Status & Actions -->
-            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(0, 174, 239, 0.15);">
-              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-                <div>
-                  <p style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">
-                    Status:
-                    <span :class="apiConfig.baseUrl && apiConfig.apiKey ? 'tag closed' : 'tag open'">
-                      {{ apiConfig.baseUrl && apiConfig.apiKey ? 'Configured' : 'Not Configured' }}
-                    </span>
-                  </p>
-                  <p v-if="apiSyncLog.lastSync" style="font-size: 12px; color: var(--text-muted);">
-                    Last Sync: {{ new Date(apiSyncLog.lastSync).toLocaleString() }}
-                    <span v-if="apiSyncLog.lastSyncStatus" :style="{ color: apiSyncLog.lastSyncStatus === 'success' ? '#15803d' : '#b91c1c' }">
-                      ({{ apiSyncLog.lastSyncStatus }})
-                    </span>
-                  </p>
-                </div>
-
-                <div class="action-group">
-                  <button
-                    class="pill small ghost"
-                    type="button"
-                    @click="testApiConnection"
-                    :disabled="!apiConfig.baseUrl || !apiConfig.apiKey"
-                  >
-                    Test Connection
-                  </button>
-                  <button
-                    class="pill small secondary"
-                    type="button"
-                    @click="triggerApiSync"
-                    :disabled="!apiConfig.baseUrl || !apiConfig.apiKey"
-                  >
-                    Sync Now
-                  </button>
-                  <button
-                    class="pill small"
-                    type="button"
-                    @click="saveApiConfig"
-                    :disabled="!apiConfigModified"
-                  >
-                    Save Configuration
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Sync Logs -->
-            <div v-if="apiSyncLog.logs && apiSyncLog.logs.length > 0" style="margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(0, 174, 239, 0.15);">
-              <h4 style="font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">📋 Recent Sync Logs</h4>
-              <div style="max-height: 200px; overflow-y: auto; background: #f8fafb; border-radius: var(--radius-sm); padding: 12px;">
-                <div v-for="(log, index) in apiSyncLog.logs.slice(0, 10)" :key="index" style="font-size: 12px; font-family: monospace; padding: 4px 0; border-bottom: 1px solid #e1e7ef;">
-                  <span style="color: #64748b;">{{ new Date(log.timestamp).toLocaleString() }}</span> -
-                  <span :style="{ color: log.type === 'error' ? '#dc2626' : log.type === 'success' ? '#15803d' : '#0f172a' }">
-                    {{ log.message }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
 
-    <div class="modal" v-show="modals.add">
+    <div class="modal" v-if="modals.add">
       <div class="modal-card">
         <header>
           <div>
@@ -1246,7 +1579,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="modals.view">
+    <div class="modal" v-if="modals.view">
       <div class="modal-card">
         <header>
           <div>
@@ -1321,7 +1654,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="orderModals.add">
+    <div class="modal" v-if="orderModals.add">
       <div class="modal-card">
         <header>
           <div>
@@ -1349,6 +1682,13 @@
               <input v-model.number="orderAddForm.cost" type="number" min="0" step="0.01" />
             </label>
             <label>
+              <span class="input-label">Currency</span>
+              <select v-model="orderAddForm.currency">
+                <option value="JMD">JMD</option>
+                <option value="USD">USD</option>
+              </select>
+            </label>
+            <label>
               <span class="input-label">Status</span>
               <select v-model="orderAddForm.status">
                 <option v-for="s in orderStatusOptions" :key="s" :value="s">{{ s }}</option>
@@ -1367,7 +1707,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="orderModals.edit">
+    <div class="modal" v-if="orderModals.edit">
       <div class="modal-card">
         <header>
           <div>
@@ -1395,6 +1735,13 @@
               <input v-model.number="orderEditForm.cost" type="number" min="0" step="0.01" />
             </label>
             <label>
+              <span class="input-label">Currency</span>
+              <select v-model="orderEditForm.currency">
+                <option value="JMD">JMD</option>
+                <option value="USD">USD</option>
+              </select>
+            </label>
+            <label>
               <span class="input-label">Status</span>
               <select v-model="orderEditForm.status">
                 <option v-for="s in orderStatusOptions" :key="s" :value="s">{{ s }}</option>
@@ -1413,7 +1760,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="orderModals.delete">
+    <div class="modal" v-if="orderModals.delete">
       <div class="modal-card">
         <header>
           <div>
@@ -1429,7 +1776,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="modals.collection">
+    <div class="modal" v-if="modals.collection">
       <div class="modal-card">
         <header>
           <div>
@@ -1439,6 +1786,18 @@
           <button class="icon-btn" aria-label="Close modal" @click="closeModal('collection')">&times;</button>
         </header>
         <form @submit.prevent="confirmCollection">
+          <div style="margin-bottom: 1rem; padding: 0.75rem; background: #f5f5f5; border-radius: 8px;">
+            <p class="muted" style="margin: 0 0 0.5rem 0; font-size: 0.875rem;">Current billing status:</p>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <span
+                v-for="pkg in selectedPackageIds.map(id => findPackage(id)).filter(Boolean)"
+                :key="pkg.packageId"
+                :class="['tag', pkg.billingStatus === 'Closed' ? 'closed' : pkg.billingStatus === 'Open' ? 'open' : 'partial']"
+              >
+                {{ pkg.packageId }}: {{ pkg.billingStatus }}
+              </span>
+            </div>
+          </div>
           <div class="form-grid">
             <label>
               <span class="input-label">Amount paid</span>
@@ -1474,7 +1833,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="modals.edit">
+    <div class="modal" v-if="modals.edit">
       <div class="modal-card">
         <header>
           <div>
@@ -1514,7 +1873,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="modals.delete">
+    <div class="modal" v-if="modals.delete">
       <div class="modal-card">
         <header>
           <div>
@@ -1537,7 +1896,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="userModals.add">
+    <div class="modal" v-if="userModals.add">
       <div class="modal-card">
         <header>
           <div>
@@ -1578,7 +1937,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="userModals.edit">
+    <div class="modal" v-if="userModals.edit">
       <div class="modal-card">
         <header>
           <div>
@@ -1619,7 +1978,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="userModals.delete">
+    <div class="modal" v-if="userModals.delete">
       <div class="modal-card">
         <header>
           <div>
@@ -1638,7 +1997,7 @@
       </div>
     </div>
 
-    <div class="modal" v-show="userModals.permissions">
+    <div class="modal" v-if="userModals.permissions">
       <div class="modal-card">
         <header>
           <div>
@@ -1730,7 +2089,7 @@
     </div>
 
     <!-- Shipment Upload Modal -->
-    <div class="modal" v-show="shipmentModals.upload">
+    <div class="modal" v-if="shipmentModals.upload">
       <div class="modal-card">
         <header>
           <div>
@@ -1740,13 +2099,21 @@
           <button class="icon-btn" aria-label="Close modal" @click="shipmentModals.upload = false">&times;</button>
         </header>
         <form @submit.prevent="confirmShipmentUpload">
-          <p class="muted">Upload a CSV file exported from Google Sheets with columns: Package ID, Customer Name, Alt Name, Tracking Number, Weight</p>
+          <p class="muted">Upload a CSV file exported from Google Sheets with columns: Package ID, Code, Customer Name, Alt Name, Tracking Number, Weight, Description</p>
           <div class="form-grid" style="margin-top: 16px;">
             <label>
               <span class="input-label">Shipment Date</span>
               <input v-model="shipmentUploadForm.shipmentDate" type="date" required />
             </label>
             <label>
+              <span class="input-label">Cargo Type</span>
+              <select v-model="shipmentUploadForm.cargoType" required style="padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;">
+                <option value="Air Cargo">✈️ Air Cargo</option>
+                <option value="Ocean Cargo">🚢 Ocean Cargo</option>
+                <option value="China Cargo">🇨🇳 China Cargo</option>
+              </select>
+            </label>
+            <label style="grid-column: 1 / -1;">
               <span class="input-label">CSV File</span>
               <input type="file" accept=".csv" @change="handleFileSelect" required />
             </label>
@@ -1760,7 +2127,7 @@
     </div>
 
     <!-- Move Package Confirmation Modal -->
-    <div class="modal" v-show="shipmentModals.moveConfirm">
+    <div class="modal" v-if="shipmentModals.moveConfirm">
       <div class="modal-card">
         <header>
           <div>
@@ -1783,7 +2150,7 @@
     </div>
 
     <!-- Edit Shipment Log Modal -->
-    <div class="modal" v-show="shipmentModals.edit">
+    <div class="modal" v-if="shipmentModals.edit">
       <div class="modal-card">
         <header>
           <div>
@@ -1812,7 +2179,7 @@
     </div>
 
     <!-- Delete Shipment Log Modal -->
-    <div class="modal" v-show="shipmentModals.delete">
+    <div class="modal" v-if="shipmentModals.delete">
       <div class="modal-card">
         <header>
           <div>
@@ -1833,8 +2200,57 @@
       </div>
     </div>
 
+    <!-- Add Shipment Item Modal -->
+    <div class="modal" v-if="shipmentModals.addItem">
+      <div class="modal-card">
+        <header>
+          <div>
+            <p class="eyebrow">Package Management</p>
+            <h3>Add New Package</h3>
+          </div>
+          <button class="icon-btn" aria-label="Close modal" @click="shipmentModals.addItem = false">&times;</button>
+        </header>
+        <form @submit.prevent="confirmAddShipmentItem">
+          <div class="form-grid">
+            <label>
+              <span class="input-label">Customer Name</span>
+              <input v-model="itemAddForm.customerName" type="text" required />
+            </label>
+            <label>
+              <span class="input-label">Alt Name</span>
+              <input v-model="itemAddForm.altName" type="text" />
+            </label>
+            <label>
+              <span class="input-label">Tracking Number</span>
+              <input v-model="itemAddForm.trackingNumber" type="text" required />
+            </label>
+            <label>
+              <span class="input-label">Package ID</span>
+              <input v-model="itemAddForm.packageId" type="text" />
+            </label>
+            <label>
+              <span class="input-label">Code</span>
+              <input v-model="itemAddForm.code" type="text" placeholder="e.g., DHL, FedEx" />
+            </label>
+            <label>
+              <span class="input-label">Weight (LB)</span>
+              <input v-model="itemAddForm.weight" type="number" step="0.1" />
+            </label>
+            <label style="grid-column: 1 / -1;">
+              <span class="input-label">Description</span>
+              <textarea v-model="itemAddForm.description" rows="3"></textarea>
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button class="pill ghost" type="button" @click="shipmentModals.addItem = false">Cancel</button>
+            <button class="pill" type="submit">Add Package</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Edit Shipment Item Modal -->
-    <div class="modal" v-show="shipmentModals.editItem">
+    <div class="modal" v-if="shipmentModals.editItem">
       <div class="modal-card">
         <header>
           <div>
@@ -1875,7 +2291,7 @@
     </div>
 
     <!-- Move Shipment Item Modal -->
-    <div class="modal" v-show="shipmentModals.moveItem">
+    <div class="modal" v-if="shipmentModals.moveItem">
       <div class="modal-card">
         <header>
           <div>
@@ -1912,6 +2328,7 @@
         </div>
       </div>
     </div>
+
   </div>
 
   <!-- SETTINGS PAGE MODALS -->
@@ -2086,6 +2503,233 @@
         </div>
       </div>
     </div>
+
+    <!-- Role Permission Modal -->
+    <div v-if="rolePermissionModal" class="modal" @click.self="rolePermissionModal = false">
+      <div class="modal-card" style="max-width: 700px;">
+        <header>
+          <div>
+            <p class="eyebrow">{{ selectedRoleForPermissions }}</p>
+            <h3>Role Permissions</h3>
+          </div>
+          <button class="icon-btn" aria-label="Close modal" @click="rolePermissionModal = false">&times;</button>
+        </header>
+
+        <div style="max-height: 500px; overflow-y: auto; padding-right: 8px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding: 12px; background: #f1f5f9; border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px; font-weight: 600; color: var(--text-main);">Administrator Access</span>
+              <span style="font-size: 14px; color: #64748b;">ⓘ</span>
+            </div>
+            <label style="margin: 0; cursor: pointer;">
+              <input
+                type="checkbox"
+                :checked="Object.values(rolePermissionSettings).every(p => p.read && p.write && p.create)"
+                @change="e => Object.keys(rolePermissionSettings).forEach(k => toggleAllPermissions(k, e.target.checked))"
+              />
+              <span style="margin-left: 8px; font-size: 14px; font-weight: 600;">Select All</span>
+            </label>
+          </div>
+
+          <!-- Permission Categories -->
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <!-- Package Management -->
+            <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 15px; color: var(--text-main);">Package Management</strong>
+                <div style="display: flex; gap: 32px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.packageManagement.read" />
+                    <span style="font-size: 14px;">Read</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.packageManagement.write" />
+                    <span style="font-size: 14px;">Write</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.packageManagement.create" />
+                    <span style="font-size: 14px;">Create</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Customer Management -->
+            <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 15px; color: var(--text-main);">Customer Management</strong>
+                <div style="display: flex; gap: 32px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.customerManagement.read" />
+                    <span style="font-size: 14px;">Read</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.customerManagement.write" />
+                    <span style="font-size: 14px;">Write</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.customerManagement.create" />
+                    <span style="font-size: 14px;">Create</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Order Management -->
+            <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 15px; color: var(--text-main);">Order Management</strong>
+                <div style="display: flex; gap: 32px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.orderManagement.read" />
+                    <span style="font-size: 14px;">Read</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.orderManagement.write" />
+                    <span style="font-size: 14px;">Write</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.orderManagement.create" />
+                    <span style="font-size: 14px;">Create</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Collection Management -->
+            <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 15px; color: var(--text-main);">Collection Management</strong>
+                <div style="display: flex; gap: 32px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.collectionManagement.read" />
+                    <span style="font-size: 14px;">Read</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.collectionManagement.write" />
+                    <span style="font-size: 14px;">Write</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.collectionManagement.create" />
+                    <span style="font-size: 14px;">Create</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Shipment Bin Management -->
+            <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 15px; color: var(--text-main);">Shipment Bin Management</strong>
+                <div style="display: flex; gap: 32px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.shipmentBinManagement.read" />
+                    <span style="font-size: 14px;">Read</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.shipmentBinManagement.write" />
+                    <span style="font-size: 14px;">Write</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.shipmentBinManagement.create" />
+                    <span style="font-size: 14px;">Create</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dashboard/Reporting -->
+            <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 15px; color: var(--text-main);">Dashboard/Reporting</strong>
+                <div style="display: flex; gap: 32px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.dashboardReporting.read" />
+                    <span style="font-size: 14px;">Read</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.dashboardReporting.write" />
+                    <span style="font-size: 14px;">Write</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.dashboardReporting.create" />
+                    <span style="font-size: 14px;">Create</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- API Configuration -->
+            <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 15px; color: var(--text-main);">API Configuration</strong>
+                <div style="display: flex; gap: 32px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.apiConfiguration.read" />
+                    <span style="font-size: 14px;">Read</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.apiConfiguration.write" />
+                    <span style="font-size: 14px;">Write</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.apiConfiguration.create" />
+                    <span style="font-size: 14px;">Create</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Settings Management -->
+            <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 15px; color: var(--text-main);">Settings Management</strong>
+                <div style="display: flex; gap: 32px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.settingsManagement.read" />
+                    <span style="font-size: 14px;">Read</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.settingsManagement.write" />
+                    <span style="font-size: 14px;">Write</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.settingsManagement.create" />
+                    <span style="font-size: 14px;">Create</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- User Management -->
+            <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 15px; color: var(--text-main);">User Management</strong>
+                <div style="display: flex; gap: 32px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.userManagement.read" />
+                    <span style="font-size: 14px;">Read</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.userManagement.write" />
+                    <span style="font-size: 14px;">Write</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" v-model="rolePermissionSettings.userManagement.create" />
+                    <span style="font-size: 14px;">Create</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 24px;">
+          <button class="pill ghost" type="button" @click="rolePermissionModal = false">Cancel</button>
+          <button class="pill" type="button" @click="submitRolePermissionSettings" style="background: #3b82f6;">Submit</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 </template>
@@ -2102,11 +2746,11 @@ import planeIcon from "./assets/plane-alt.png";
 import shipIcon from "./assets/ship.png";
 
 const employees = reactive([
-  { id: "emp-0", name: "Warren Walker", email: "warren@sgxpress.com", password: "admin123", photo: "", location: "", role: "full_control", customPermissions: null },
-  { id: "emp-1", name: "Jordan Lee", email: "jordan@sgxpress.com", password: "pass123", photo: "", location: "", role: "full_control", customPermissions: null },
-  { id: "emp-2", name: "Nina Patel", email: "nina@sgxpress.com", password: "pass123", photo: "", location: "", role: "editor", customPermissions: null },
-  { id: "emp-3", name: "Carlos Martinez", email: "carlos@sgxpress.com", password: "pass123", photo: "", location: "", role: "view_only", customPermissions: null },
-  { id: "emp-4", name: "Amara Jones", email: "amara@sgxpress.com", password: "pass123", photo: "", location: "", role: "view_only", customPermissions: null },
+  { id: "emp-0", name: "Warren Walker", email: "warren@sgxpress.com", password: "admin123", photo: "", location: "", role: "full_control", customPermissions: null, active: 1, lastLogin: "2025-11-27 20:45:00" },
+  { id: "emp-1", name: "Jordan Lee", email: "jordan@sgxpress.com", password: "pass123", photo: "", location: "", role: "full_control", customPermissions: null, active: 1, lastLogin: "2025-11-27 19:30:00" },
+  { id: "emp-2", name: "Nina Patel", email: "nina@sgxpress.com", password: "pass123", photo: "", location: "", role: "editor", customPermissions: null, active: 1, lastLogin: "2025-11-27 18:15:00" },
+  { id: "emp-3", name: "Carlos Martinez", email: "carlos@sgxpress.com", password: "pass123", photo: "", location: "", role: "view_only", customPermissions: null, active: 1, lastLogin: "2025-11-26 14:20:00" },
+  { id: "emp-4", name: "Amara Jones", email: "amara@sgxpress.com", password: "pass123", photo: "", location: "", role: "view_only", customPermissions: null, active: 0, lastLogin: "2025-11-20 10:00:00" },
 ]);
 
 const initialCustomers = [
@@ -2356,6 +3000,10 @@ const loginError = ref("");
 const profileForm = reactive({ email: "", password: "", photo: "" });
 const placeholderPhoto = "https://via.placeholder.com/120x120.png?text=Photo";
 const settings = reactive({ notifyEmail: true, notifySms: false, notifyDesktop: true });
+const activeSettingsTab = ref('roles');
+const activeDailyMethod = ref(null); // null means show all, or 'cash', 'pos', 'transfer', 'creditCard'
+const dailySummaryDateFilter = ref('');
+const dailyTimeFilter = ref('today'); // 'today', '7days', '1month', '90days', 'year'
 const collectionLog = ref([]);
 const statusOptions = ["Ready for Pickup", "Processing at Customs", "Processing in Office", "In Transit"];
 const ordersSearch = ref("");
@@ -2370,6 +3018,7 @@ const orderAddForm = reactive({
   status: "Ordered",
   merchant: "",
   method: "Credit Card",
+  currency: "JMD",
 });
 const orderEditForm = reactive({ ...orderAddForm });
 const orderDeleteId = ref("");
@@ -2391,6 +3040,22 @@ const apiUpdateForm = reactive({
   note: "",
 });
 const apiMessage = ref("");
+
+// Courier Depot API Integration (credentials now stored in backend)
+const courierDepotApi = reactive({
+  accessToken: null,
+  tokenExpiry: null,
+  isAuthenticated: false,
+});
+const apiSyncStatus = ref(""); // For showing sync messages
+const isSyncing = ref(false);
+
+// Packages page state
+const packagesSearchQuery = ref("");
+const packagesActiveFilter = ref("all");
+const lastSyncTime = ref("");
+const lastSyncDetails = ref("");
+
 const profileMenuOpen = ref(false);
 const viewPackage = ref(null);
 const adminEditId = ref("");
@@ -2432,22 +3097,29 @@ const customPermissions = reactive({
 // Settings Page State - Roles & Permissions
 const roles = ref([]);
 const permissions = ref([]);
-const selectedRole = ref(null);
 const roleModals = reactive({ add: false, edit: false, delete: false, duplicate: false, permissions: false });
-const roleForm = reactive({
-  name: "",
-  description: "",
-});
-const roleEditForm = reactive({
-  id: "",
-  name: "",
-  description: "",
-});
+const roleForm = reactive({ name: "", description: "" });
+const roleEditForm = reactive({ id: "", name: "", description: "" });
 const roleDeleteTarget = ref(null);
 const roleDuplicateTarget = ref(null);
 const duplicateRoleName = ref("");
-const rolePermissionsTarget = ref(null);
-const selectedPermissions = ref([]);
+// Settings Page State - Role Permission Modal
+const rolePermissionModal = ref(false);
+const selectedRoleForPermissions = ref(null);
+const rolePermissionSettings = reactive({
+  packageManagement: { read: false, write: false, create: false },
+  customerManagement: { read: false, write: false, create: false },
+  orderManagement: { read: false, write: false, create: false },
+  collectionManagement: { read: false, write: false, create: false },
+  shipmentBinManagement: { read: false, write: false, create: false },
+  dashboardReporting: { read: false, write: false, create: false },
+  apiConfiguration: { read: false, write: false, create: false },
+  settingsManagement: { read: false, write: false, create: false },
+  userManagement: { read: false, write: false, create: false }
+});
+const userRoleFilter = ref('');
+const userStatusFilter = ref('');
+const userSearchFilter = ref('');
 
 // Settings Page State - User Management
 const passwordResetModal = ref(false);
@@ -2455,7 +3127,7 @@ const passwordResetTarget = ref(null);
 const newPassword = ref("");
 
 // Settings Page State - API Configuration
-const apiConfig = ref({});
+const apiConfig = ref(null);
 const apiSyncLogs = ref([]);
 const apiConfigForm = reactive({
   baseUrl: "",
@@ -2465,10 +3137,10 @@ const apiConfigForm = reactive({
   timeout: 30000,
   environment: "production",
 });
-const showApiKey = ref(false);
 const showApiPassword = ref(false);
 const apiTestStatus = ref("");
 const apiTestMessage = ref("");
+const isEditingApiConfig = ref(false);
 
 // Settings Page State - Maintenance Mode
 const maintenanceMode = ref(false);
@@ -2478,6 +3150,7 @@ const shipmentLogs = ref([]);
 const activeShipmentLogId = ref("");
 const shipmentItems = ref([]);
 const shipmentFilter = ref("all");
+const shipmentCourierFilter = ref("");
 const shipmentSearchQuery = ref("");
 const shipmentSortColumn = ref("");
 const shipmentSortDirection = ref("asc");
@@ -2489,9 +3162,14 @@ const notFoundCount = ref(0);
 const notFoundScans = ref([]);
 const showNotFoundScans = ref(false);
 
-const shipmentModals = reactive({ upload: false, moveConfirm: false, edit: false, delete: false, editItem: false, moveItem: false });
+// Kebab Menu State
+const openUserKebabId = ref(null);
+const openShipmentItemKebabId = ref(null);
+
+const shipmentModals = reactive({ upload: false, moveConfirm: false, edit: false, delete: false, editItem: false, moveItem: false, addItem: false });
 const shipmentUploadForm = reactive({
   shipmentDate: new Date().toISOString().split('T')[0],
+  cargoType: 'Air Cargo',
   file: null,
 });
 const shipmentEditForm = reactive({
@@ -2512,6 +3190,15 @@ const itemEditForm = reactive({
   packageId: '',
   weight: '',
 });
+const itemAddForm = reactive({
+  customerName: '',
+  altName: '',
+  trackingNumber: '',
+  packageId: '',
+  code: '',
+  weight: '',
+  description: '',
+});
 const itemMoveTarget = ref(null);
 const itemMoveDestination = ref('');
 
@@ -2519,11 +3206,30 @@ const shipmentStats = computed(() => {
   const total = shipmentItems.value.length;
   const received = shipmentItems.value.filter(item => item.status === 'received').length;
   const pending = shipmentItems.value.filter(item => item.status === 'pending').length;
-  return { total, received, pending, notFound: notFoundCount.value };
+  const couriers = uniqueCourierCodes.value.length;
+  return { total, received, pending, couriers };
+});
+
+// Computed: Unique courier codes from shipment items
+const uniqueCourierCodes = computed(() => {
+  const codes = new Set();
+  shipmentItems.value.forEach(item => {
+    const code = item.code || item.courier_code || 'RSC';
+    codes.add(code);
+  });
+  return Array.from(codes).sort();
 });
 
 const filteredShipmentItems = computed(() => {
   let filtered = shipmentItems.value;
+
+  // Apply courier filter
+  if (shipmentCourierFilter.value) {
+    filtered = filtered.filter(item => {
+      const code = item.code || item.courier_code || 'RSC';
+      return code === shipmentCourierFilter.value;
+    });
+  }
 
   // Apply status filter
   if (shipmentFilter.value !== 'all') {
@@ -2679,6 +3385,58 @@ const stats = computed(() => {
   };
 });
 
+// Packages page computed properties
+const allPackagesForPackagesPage = computed(() => {
+  return customers.value.flatMap(c => c.packages.map(pkg => ({
+    ...pkg,
+    customer: c.name
+  }))).filter(pkg => !pkg.deleted);
+});
+
+const syncedPackagesCount = computed(() => {
+  return allPackagesForPackagesPage.value.length;
+});
+
+const packageFilters = computed(() => {
+  const all = allPackagesForPackagesPage.value;
+  return [
+    { key: 'all', label: 'All', count: all.length },
+    { key: 'pending', label: 'Pending', count: all.filter(p => p.status?.toLowerCase().includes('pending')).length },
+    { key: 'received', label: 'Received', count: all.filter(p => p.status?.toLowerCase().includes('received')).length },
+    { key: 'in_transit', label: 'In Transit', count: all.filter(p => p.status?.toLowerCase().includes('transit')).length },
+    { key: 'delivered', label: 'Delivered', count: all.filter(p => p.status?.toLowerCase().includes('delivered')).length }
+  ];
+});
+
+const filteredPackagesForPage = computed(() => {
+  let filtered = allPackagesForPackagesPage.value;
+
+  // Apply status filter
+  if (packagesActiveFilter.value !== 'all') {
+    const filterMap = {
+      'pending': 'pending',
+      'received': 'received',
+      'in_transit': 'transit',
+      'delivered': 'delivered'
+    };
+    const searchTerm = filterMap[packagesActiveFilter.value];
+    filtered = filtered.filter(p => p.status?.toLowerCase().includes(searchTerm));
+  }
+
+  // Apply search
+  if (packagesSearchQuery.value.trim()) {
+    const query = packagesSearchQuery.value.toLowerCase();
+    filtered = filtered.filter(p =>
+      p.packageId?.toLowerCase().includes(query) ||
+      p.trackingNumber?.toLowerCase().includes(query) ||
+      p.customer?.toLowerCase().includes(query) ||
+      p.description?.toLowerCase().includes(query)
+    );
+  }
+
+  return filtered;
+});
+
 const readyCountLabel = computed(() => `${stats.value.ready} ready`);
 
 const collectionTitle = computed(() => {
@@ -2712,9 +3470,9 @@ const can = (perm) => {
 const hasPermission = can; // Alias for template usage
 const isAdmin = computed(() => can('admin'));
 const allowedPages = computed(() => {
-  if (isAdmin.value) return ["dashboard", "shipment-bin", "orders", "summary", "api", "profile", "settings", "admin"];
-  if (currentRole.value === "editor") return ["dashboard", "shipment-bin", "orders", "summary", "profile"];
-  return ["dashboard", "shipment-bin", "summary", "profile", "orders"];
+  if (isAdmin.value) return ["dashboard", "shipment-bin", "orders", "packages", "summary", "api", "profile", "settings", "admin"];
+  if (currentRole.value === "editor") return ["dashboard", "shipment-bin", "orders", "packages", "summary", "profile"];
+  return ["dashboard", "shipment-bin", "summary", "profile", "orders", "packages"];
 });
 
 const dailySummary = computed(() => {
@@ -2764,8 +3522,165 @@ const dailySummary = computed(() => {
   }));
 });
 
+// Filtered daily summary based on date
+const filteredDailySummary = computed(() => {
+  let results = dailySummary.value;
+
+  // Filter by date if specified
+  if (dailySummaryDateFilter.value) {
+    results = results.filter(row => row.date === dailySummaryDateFilter.value);
+  }
+
+  // Sort by date descending (most recent first)
+  results = [...results].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // Limit to last 5 transactions for "All Collections" view when no date filter
+  if (!dailySummaryDateFilter.value && !activeDailyMethod.value) {
+    return results.slice(0, 5);
+  }
+
+  return results;
+});
+
+// Calculate totals for each payment method
+const dailyMethodTotals = computed(() => {
+  const data = dailySummaryDateFilter.value ? filteredDailySummary.value : dailySummary.value;
+
+  return {
+    cash: data.reduce((sum, row) => sum + row.cash, 0),
+    pos: data.reduce((sum, row) => sum + row.pos, 0),
+    transfer: data.reduce((sum, row) => sum + row.transfer, 0),
+    creditCard: data.reduce((sum, row) => sum + row.creditCard, 0),
+  };
+});
+
+// Get individual transactions (for Transactions table)
+const allTransactions = computed(() => {
+  const transactions = [];
+
+  // Add collection log entries (Cash, POS, Transfer)
+  collectionLog.value.forEach((entry) => {
+    // Find the customer name from the package
+    let customerName = '—';
+    if (entry.package_id) {
+      // Look for the package in customers' packages
+      for (const customer of customers.value) {
+        const pkg = customer.packages.find(p => p.packageId === entry.package_id);
+        if (pkg) {
+          customerName = customer.name;
+          break;
+        }
+      }
+    }
+
+    transactions.push({
+      date: entry.date,
+      userName: customerName,
+      amount: entry.amount,
+      method: entry.method,
+    });
+  });
+
+  // Add SGX Orders (Credit Card)
+  orders.value.forEach((order) => {
+    if (order.method === "Credit Card") {
+      transactions.push({
+        date: order.date,
+        userName: order.customer_name || '—',
+        amount: Number(order.cost || 0),
+        method: 'Credit Card',
+      });
+    }
+  });
+
+  // Sort by date descending
+  return transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+});
+
+// Filter transactions by time period
+const filteredTransactions = computed(() => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let cutoffDate;
+
+  switch (dailyTimeFilter.value) {
+    case 'today':
+      cutoffDate = today;
+      break;
+    case '7days':
+      cutoffDate = new Date(today);
+      cutoffDate.setDate(cutoffDate.getDate() - 7);
+      break;
+    case '1month':
+      cutoffDate = new Date(today);
+      cutoffDate.setMonth(cutoffDate.getMonth() - 1);
+      break;
+    case '90days':
+      cutoffDate = new Date(today);
+      cutoffDate.setDate(cutoffDate.getDate() - 90);
+      break;
+    case 'year':
+      cutoffDate = new Date(today);
+      cutoffDate.setFullYear(cutoffDate.getFullYear() - 1);
+      break;
+    default:
+      cutoffDate = new Date(0); // All time
+  }
+
+  return allTransactions.value
+    .filter(t => new Date(t.date) >= cutoffDate)
+    .slice(0, 5); // Limit to last 5 transactions
+});
+
+// Filter credit card orders by time period for breakdown view
+const filteredCreditCardOrders = computed(() => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let cutoffDate;
+
+  switch (dailyTimeFilter.value) {
+    case 'today':
+      cutoffDate = today;
+      break;
+    case '7days':
+      cutoffDate = new Date(today);
+      cutoffDate.setDate(cutoffDate.getDate() - 7);
+      break;
+    case '1month':
+      cutoffDate = new Date(today);
+      cutoffDate.setMonth(cutoffDate.getMonth() - 1);
+      break;
+    case '90days':
+      cutoffDate = new Date(today);
+      cutoffDate.setDate(cutoffDate.getDate() - 90);
+      break;
+    case 'year':
+      cutoffDate = new Date(today);
+      cutoffDate.setFullYear(cutoffDate.getFullYear() - 1);
+      break;
+    default:
+      cutoffDate = new Date(0); // All time
+  }
+
+  return orders.value
+    .filter(o => o.method === 'Credit Card' && new Date(o.date) >= cutoffDate)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+});
+
 const formatCurrency = (amount) => `$${Number(amount || 0).toFixed(2)}`;
 const latestNote = (pkg) => (pkg.notes?.length ? pkg.notes[pkg.notes.length - 1] : "—");
+
+// Helper function to display readable role names
+const getRoleDisplayName = (roleId) => {
+  const roleNames = {
+    'full_control': 'Full Control',
+    'editor': 'Editor',
+    'view_only': 'View Only'
+  };
+  return roleNames[roleId] || roleId;
+};
 
 const computeLateFee = (pkg) => {
   if (!pkg || pkg.collected) return 0;
@@ -3184,6 +4099,249 @@ const resetApiUpdate = () => {
   apiMessage.value = "";
 };
 
+// Courier Depot API Functions (via backend proxy)
+const courierDepotSignin = async () => {
+  try {
+    const response = await fetch('http://localhost:4000/api/courier-depot/signin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Authentication failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    courierDepotApi.accessToken = result.data.accessToken;
+    courierDepotApi.tokenExpiry = Date.now() + (24 * 60 * 60 * 1000); // Token valid for 24 hours
+    courierDepotApi.isAuthenticated = true;
+
+    return true;
+  } catch (error) {
+    console.error('Courier Depot signin error:', error);
+    apiSyncStatus.value = `Authentication failed: ${error.message}`;
+    courierDepotApi.isAuthenticated = false;
+    return false;
+  }
+};
+
+const syncPackagesFromCourierDepot = async () => {
+  if (isSyncing.value) return;
+
+  isSyncing.value = true;
+  apiSyncStatus.value = "Syncing packages...";
+
+  try {
+    // Check if token exists and is valid
+    if (!courierDepotApi.accessToken || Date.now() > courierDepotApi.tokenExpiry) {
+      apiSyncStatus.value = "Authenticating...";
+      const authenticated = await courierDepotSignin();
+      if (!authenticated) {
+        throw new Error('Authentication failed');
+      }
+    }
+
+    // Fetch packages via backend proxy
+    apiSyncStatus.value = "Fetching packages from Courier Depot...";
+    const response = await fetch('http://localhost:4000/api/courier-depot/sync-packages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        accessToken: courierDepotApi.accessToken,
+        syncedBy: currentUser.value?.name || 'System',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to fetch packages: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const apiPackages = result.packages?.packlist || result.packages;
+
+    if (!Array.isArray(apiPackages)) {
+      throw new Error('Invalid response format - expected array of packages');
+    }
+
+    // Sort packages by date/ID to get most recent first
+    const sortedPackages = [...apiPackages].sort((a, b) => {
+      // Try to sort by date fields first (newest first)
+      const dateA = a.created_at || a.createdAt || a.warehouse_date || a.warehouseDate;
+      const dateB = b.created_at || b.createdAt || b.warehouse_date || b.warehouseDate;
+
+      if (dateA && dateB) {
+        return new Date(dateB) - new Date(dateA); // Descending (newest first)
+      }
+
+      // Fallback to ID (assuming higher ID = newer package)
+      return (b.id || 0) - (a.id || 0);
+    });
+
+    // Take the most recent 50 packages
+    const recentPackages = sortedPackages.slice(0, 50);
+
+    // Log package IDs for verification
+    console.log(`📦 Fetching ${recentPackages.length} most recent packages:`);
+    console.log(`Package IDs: ${recentPackages.slice(0, 10).map(p => p.id).join(', ')}${recentPackages.length > 10 ? '...' : ''}`);
+
+    apiSyncStatus.value = `Processing ${recentPackages.length} packages...`;
+
+    // Map API packages to local package format
+    let imported = 0;
+    let updated = 0;
+
+    // Keep track of created customers to avoid duplicates
+    const createdCustomers = new Set();
+
+    // Process packages sequentially to persist to database
+    for (const apiPkg of recentPackages) {
+      try {
+        // Ensure customer exists in database before creating package
+        const customerName = apiPkg.userId?.name || 'Unknown Customer';
+        const customerId = customerName.replace(/\s+/g, '-').toUpperCase();
+
+        if (!createdCustomers.has(customerId)) {
+          // Check if customer exists, create if not
+          const customerExists = await fetch(`http://localhost:4000/api/customers`)
+            .then(r => r.json())
+            .then(data => data.customers?.some(c => c.id === customerId))
+            .catch(() => false);
+
+          if (!customerExists) {
+            // Create new customer
+            await fetch('http://localhost:4000/api/customers', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: customerId,
+                name: customerName,
+                email: `${customerId.toLowerCase()}@customer.com`,
+                phone: '',
+                address: '',
+              }),
+            }).catch(err => console.error(`Failed to create customer ${customerId}:`, err));
+          }
+          createdCustomers.add(customerId);
+        }
+
+        // Check if package already exists in database
+        const existingPkg = await fetch(`http://localhost:4000/api/packages/${apiPkg.trackingNumber || apiPkg.id}`).then(r => r.ok ? r.json() : null).catch(() => null);
+
+        const mappedPackage = {
+          packageId: String(apiPkg.id),
+          externalPackageId: String(apiPkg.id),
+          customerId: customerId,
+          trackingNumber: apiPkg.trackingNumber || '', // Actual tracking number
+          weight: apiPkg.weight || 0,
+          description: apiPkg.description || '',
+          cost: apiPkg.value || apiPkg.cost || 0,
+          status: apiPkg.status || 'Processing in Office',
+          billingStatus: apiPkg.paid ? 'Closed' : 'Open',
+          paymentMethod: apiPkg.packageMethod || 'Cash',
+          freightType: apiPkg.type || 'AIR',
+          dateUpdated: new Date().toISOString().split('T')[0],
+          updatedBy: 'Courier Depot API',
+          collected: apiPkg.packageRecieved || false,
+          archived: false, // Don't auto-archive synced packages
+          // New Courier Depot fields
+          altName: apiPkg.altName || '',
+          reason: apiPkg.reason || '',
+          seller: apiPkg.seller || '',
+          length: apiPkg.length || 0,
+          width: apiPkg.width || 0,
+          height: apiPkg.height || 0,
+          cubicFeet: apiPkg.cubicFeet || 0,
+          location: apiPkg.location || '',
+          invoiceUrl: apiPkg.invoceUrl || '', // Note: API has typo "invoceUrl"
+          packageImageUrl: apiPkg.packageImg || '',
+          preAlert: apiPkg.preAlert || false,
+          emailSent: apiPkg.emailSent || false,
+          paid: apiPkg.paid || false,
+          warehouseDate: apiPkg.warehousedate || null,
+        };
+
+        if (existingPkg) {
+          // Update existing package in database
+          await fetch(`http://localhost:4000/api/packages/${mappedPackage.packageId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(mappedPackage),
+          });
+          updated++;
+        } else {
+          // Create new package in database
+          await fetch('http://localhost:4000/api/packages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(mappedPackage),
+          });
+          imported++;
+        }
+
+        apiSyncStatus.value = `Processing... ${imported + updated}/${recentPackages.length}`;
+      } catch (pkgError) {
+        console.error(`Error processing package ${apiPkg.id}:`, pkgError);
+      }
+    }
+
+    apiSyncStatus.value = `✓ Sync complete! Imported ${imported} new packages, updated ${updated} existing packages. Reloading...`;
+
+    // Reload packages from backend to update the UI
+    await loadPackagesFromBackend();
+
+    apiSyncStatus.value = `✓ Sync complete! Imported ${imported} new packages, updated ${updated} existing packages.`;
+    setTimeout(() => { apiSyncStatus.value = ""; }, 5000);
+
+  } catch (error) {
+    console.error('Sync error:', error);
+    apiSyncStatus.value = `✗ Sync failed: ${error.message}`;
+    setTimeout(() => { apiSyncStatus.value = ""; }, 5000);
+  } finally {
+    isSyncing.value = false;
+  }
+};
+
+// API Sync function for Packages page
+const apiSyncPackages = async () => {
+  if (isSyncing.value) return;
+
+  try {
+    // Call the main sync function
+    await syncPackagesFromCourierDepot();
+
+    // Update last sync time and details for Packages page
+    const now = new Date();
+    lastSyncTime.value = now.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    // Extract sync results from apiSyncStatus
+    const statusMatch = apiSyncStatus.value.match(/Imported (\d+) new packages, updated (\d+) existing packages/);
+    if (statusMatch) {
+      const imported = parseInt(statusMatch[1]);
+      const updated = parseInt(statusMatch[2]);
+      lastSyncDetails.value = `Pulled: ${imported} added, ${updated} updated`;
+    } else {
+      lastSyncDetails.value = 'Sync completed successfully';
+    }
+
+  } catch (error) {
+    console.error('Packages sync error:', error);
+    lastSyncDetails.value = `Sync failed: ${error.message}`;
+  }
+};
+
 const login = () => {
   // Find employee by username (name) or email
   const employee = employees.find(
@@ -3290,15 +4448,6 @@ const confirmUserAdd = () => {
   userForm.role = "view_only";
 };
 
-const openUserEdit = (user) => {
-  userEditForm.id = user.id;
-  userEditForm.name = user.name;
-  userEditForm.email = user.email;
-  userEditForm.password = "";
-  userEditForm.role = user.role;
-  userModals.edit = true;
-};
-
 const confirmUserEdit = () => {
   const user = employees.find((e) => e.id === userEditForm.id);
   if (user) {
@@ -3320,11 +4469,6 @@ const confirmUserEdit = () => {
     }
   }
   userModals.edit = false;
-};
-
-const openUserDelete = (user) => {
-  userDeleteTarget.value = user;
-  userModals.delete = true;
 };
 
 const confirmUserDelete = () => {
@@ -3384,6 +4528,12 @@ const loadShipmentLogs = async () => {
   }
 };
 
+// Select a shipment log from the card view
+const selectShipmentLog = (logId) => {
+  activeShipmentLogId.value = logId;
+  loadShipmentItems();
+};
+
 // Load items for selected shipment log
 const loadShipmentItems = async () => {
   if (!activeShipmentLogId.value) {
@@ -3414,6 +4564,7 @@ const loadShipmentItems = async () => {
 // Open upload modal
 const openShipmentUpload = () => {
   shipmentUploadForm.shipmentDate = new Date().toISOString().split('T')[0];
+  shipmentUploadForm.cargoType = 'Air Cargo';
   shipmentUploadForm.file = null;
   shipmentModals.upload = true;
 };
@@ -3431,6 +4582,7 @@ const confirmShipmentUpload = async () => {
   const formData = new FormData();
   formData.append('file', shipmentUploadForm.file);
   formData.append('shipmentDate', shipmentUploadForm.shipmentDate);
+  formData.append('cargoType', shipmentUploadForm.cargoType);
   formData.append('uploadedBy', currentUser.value?.name || 'System');
 
   try {
@@ -3703,6 +4855,65 @@ const confirmItemEdit = async () => {
   }
 };
 
+// Open add item modal
+const openAddShipmentItem = () => {
+  if (!activeShipmentLogId.value) {
+    scanMessage.value = 'Please select a shipment log first';
+    scanStatus.value = 'error';
+    setTimeout(() => {
+      scanMessage.value = '';
+    }, 3000);
+    return;
+  }
+
+  // Reset form
+  itemAddForm.customerName = '';
+  itemAddForm.altName = '';
+  itemAddForm.trackingNumber = '';
+  itemAddForm.packageId = '';
+  itemAddForm.code = '';
+  itemAddForm.weight = '';
+  itemAddForm.description = '';
+
+  shipmentModals.addItem = true;
+};
+
+// Confirm add item
+const confirmAddShipmentItem = async () => {
+  try {
+    const response = await fetch('http://localhost:4000/api/shipment-items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shipmentLogId: activeShipmentLogId.value,
+        customerName: itemAddForm.customerName,
+        altName: itemAddForm.altName,
+        trackingNumber: itemAddForm.trackingNumber,
+        packageId: itemAddForm.packageId,
+        code: itemAddForm.code,
+        weight: parseFloat(itemAddForm.weight) || null,
+        description: itemAddForm.description,
+      }),
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      shipmentModals.addItem = false;
+      await loadShipmentItems();
+      await loadShipmentLogs(); // Refresh card counts
+      scanMessage.value = 'Package added successfully';
+      scanStatus.value = 'success';
+      setTimeout(() => {
+        scanMessage.value = '';
+      }, 3000);
+    }
+  } catch (error) {
+    console.error('Failed to add item:', error);
+    scanMessage.value = 'Failed to add package';
+    scanStatus.value = 'error';
+  }
+};
+
 // Open move item modal
 const openItemMove = (item) => {
   itemMoveTarget.value = item;
@@ -3728,6 +4939,7 @@ const confirmItemMove = async () => {
     if (data.success) {
       shipmentModals.moveItem = false;
       await loadShipmentItems();
+      await loadShipmentLogs(); // Refresh card counts
       scanMessage.value = 'Package moved successfully';
       scanStatus.value = 'info';
       setTimeout(() => {
@@ -3737,6 +4949,34 @@ const confirmItemMove = async () => {
   } catch (error) {
     console.error('Failed to move item:', error);
     scanMessage.value = 'Failed to move package';
+    scanStatus.value = 'error';
+  }
+};
+
+// Delete shipment item
+const deleteShipmentItem = async (item) => {
+  if (!confirm(`Are you sure you want to delete this package?\n\nTracking: ${item.tracking_number}\nCustomer: ${item.customer_name}`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`http://localhost:4000/api/shipment-items/${item.id}`, {
+      method: 'DELETE',
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      await loadShipmentItems();
+      await loadShipmentLogs(); // Refresh card counts
+      scanMessage.value = 'Package deleted successfully';
+      scanStatus.value = 'info';
+      setTimeout(() => {
+        scanMessage.value = '';
+      }, 3000);
+    }
+  } catch (error) {
+    console.error('Failed to delete item:', error);
+    scanMessage.value = 'Failed to delete package';
     scanStatus.value = 'error';
   }
 };
@@ -3794,6 +5034,81 @@ const loadPermissions = async () => {
   }
 };
 
+// New Role Permission Modal Functions
+const openRolePermissionModal = (roleName) => {
+  selectedRoleForPermissions.value = roleName;
+  // Reset all permissions
+  Object.keys(rolePermissionSettings).forEach(key => {
+    rolePermissionSettings[key] = { read: false, write: false, create: false };
+  });
+  // Set permissions based on role type
+  if (roleName === 'full_control') {
+    // Full Control gets all permissions
+    Object.keys(rolePermissionSettings).forEach(key => {
+      rolePermissionSettings[key] = { read: true, write: true, create: true };
+    });
+  } else if (roleName === 'editor') {
+    // Editors get read/write on most, create on some
+    Object.keys(rolePermissionSettings).forEach(key => {
+      if (key === 'apiConfiguration' || key === 'settingsManagement') {
+        rolePermissionSettings[key] = { read: true, write: false, create: false };
+      } else {
+        rolePermissionSettings[key] = { read: true, write: true, create: true };
+      }
+    });
+  } else if (roleName === 'view_only') {
+    // View Only get read-only on most
+    Object.keys(rolePermissionSettings).forEach(key => {
+      if (key === 'packageManagement' || key === 'customerManagement') {
+        rolePermissionSettings[key] = { read: true, write: true, create: false };
+      } else {
+        rolePermissionSettings[key] = { read: true, write: false, create: false };
+      }
+    });
+  }
+  rolePermissionModal.value = true;
+};
+
+const submitRolePermissionSettings = () => {
+  console.log(`Saving permissions for ${selectedRoleForPermissions.value}:`, rolePermissionSettings);
+  // TODO: Make API call to save permissions
+  rolePermissionModal.value = false;
+};
+
+const toggleAllPermissions = (category, value) => {
+  if (rolePermissionSettings[category]) {
+    rolePermissionSettings[category].read = value;
+    rolePermissionSettings[category].write = value;
+    rolePermissionSettings[category].create = value;
+  }
+};
+
+const filteredEmployees = computed(() => {
+  let results = employees;
+
+  // Search filter (name or email)
+  if (userSearchFilter.value) {
+    const search = userSearchFilter.value.toLowerCase();
+    results = results.filter(u =>
+      u.name.toLowerCase().includes(search) ||
+      u.email.toLowerCase().includes(search)
+    );
+  }
+
+  // Role filter
+  if (userRoleFilter.value) {
+    results = results.filter(u => u.role === userRoleFilter.value);
+  }
+
+  // Status filter
+  if (userStatusFilter.value) {
+    const isActive = userStatusFilter.value === 'active' ? 1 : 0;
+    results = results.filter(u => u.active === isActive);
+  }
+
+  return results;
+});
+
 // Load API configuration
 const loadApiConfig = async () => {
   try {
@@ -3805,6 +5120,7 @@ const loadApiConfig = async () => {
       apiConfigForm.apiKey = data.config.api_key || '';
       apiConfigForm.email = data.config.email || '';
       apiConfigForm.password = data.config.password || '';
+      apiConfigForm.userId = data.config.user_id || '';
       apiConfigForm.timeout = data.config.timeout || 30000;
       apiConfigForm.environment = data.config.environment || 'production';
     }
@@ -4113,6 +5429,44 @@ const resetUserPassword = async () => {
   }
 };
 
+// Alias functions for better naming consistency
+const addNewUser = confirmUserAdd;
+const saveEditUser = confirmUserEdit;
+
+// Toggle user active/inactive status
+const toggleUserLock = (user) => {
+  const userToUpdate = employees.find((e) => e.id === user.id);
+  if (userToUpdate) {
+    userToUpdate.active = userToUpdate.active === 1 ? 0 : 1;
+    // If toggling the current user, sign them out if deactivating
+    if (currentUser.value?.id === user.id && userToUpdate.active === 0) {
+      alert('Your account has been deactivated. You will be signed out.');
+      signOut();
+    }
+  }
+};
+
+// Kebab Menu Helper Functions
+const toggleUserKebab = (userId) => {
+  openUserKebabId.value = openUserKebabId.value === userId ? null : userId;
+};
+
+const closeUserKebab = (userId) => {
+  if (openUserKebabId.value === userId) {
+    openUserKebabId.value = null;
+  }
+};
+
+const toggleShipmentItemKebab = (itemId) => {
+  openShipmentItemKebabId.value = openShipmentItemKebabId.value === itemId ? null : itemId;
+};
+
+const closeShipmentItemKebab = (itemId) => {
+  if (openShipmentItemKebabId.value === itemId) {
+    openShipmentItemKebabId.value = null;
+  }
+};
+
 // Save API configuration
 const saveApiConfig = async () => {
   try {
@@ -4124,6 +5478,7 @@ const saveApiConfig = async () => {
         apiKey: apiConfigForm.apiKey,
         email: apiConfigForm.email,
         password: apiConfigForm.password,
+        userId: apiConfigForm.userId,
         timeout: apiConfigForm.timeout,
         environment: apiConfigForm.environment,
       }),
@@ -4131,6 +5486,7 @@ const saveApiConfig = async () => {
 
     const data = await response.json();
     if (data.success) {
+      isEditingApiConfig.value = false;
       alert('API configuration saved successfully');
       await loadApiConfig();
     } else {
@@ -4216,11 +5572,301 @@ const toggleMaintenanceModeFunc = async () => {
   }
 };
 
+// Load packages and customers from backend database
+const loadPackagesFromBackend = async () => {
+  try {
+    console.log('Loading packages from backend...');
+    const response = await fetch('http://localhost:4000/api/customers');
+    const data = await response.json();
+
+    if (data.success && data.customers) {
+      console.log(`Loaded ${data.customers.length} customers from backend`);
+
+      // Transform backend data to match frontend structure
+      // Backend already returns camelCase, so just pass through with defaults
+      const transformedCustomers = data.customers.map(customer => ({
+        id: customer.id,
+        name: customer.name,
+        packages: (customer.packages || []).map(pkg => ({
+          packageId: pkg.packageId,
+          trackingNumber: pkg.trackingNumber || '',
+          status: pkg.status || 'Processing in Office',
+          weight: pkg.weight || 0,
+          dateUpdated: pkg.dateUpdated || new Date().toISOString().split('T')[0],
+          description: pkg.description || '',
+          cost: pkg.cost || 0,
+          paymentMethod: pkg.paymentMethod || '',
+          updatedBy: pkg.updatedBy || '',
+          billingStatus: pkg.billingStatus || 'Open',
+          amountPaid: pkg.amountPaid || 0,
+          freightType: pkg.freightType || 'Air',
+          notes: pkg.notes || [],
+          collected: Boolean(pkg.collected),
+          deleted: Boolean(pkg.deleted),
+          archived: Boolean(pkg.archived),
+          // Additional Courier Depot fields
+          altName: pkg.altName || '',
+          reason: pkg.reason || '',
+          seller: pkg.seller || '',
+          length: pkg.length || 0,
+          width: pkg.width || 0,
+          height: pkg.height || 0,
+          cubicFeet: pkg.cubicFeet || 0,
+          location: pkg.location || '',
+          invoiceUrl: pkg.invoiceUrl || '',
+          packageImageUrl: pkg.packageImageUrl || '',
+          preAlert: Boolean(pkg.preAlert),
+          emailSent: Boolean(pkg.emailSent),
+          paid: Boolean(pkg.paid),
+          warehouseDate: pkg.warehouseDate || null,
+        }))
+      }));
+
+      customers.value = transformedCustomers;
+      console.log(`Packages loaded successfully. Total packages: ${transformedCustomers.reduce((sum, c) => sum + c.packages.length, 0)}`);
+    } else {
+      console.error('Failed to load customers:', data.error || 'Unknown error');
+      // Keep using the hardcoded data if backend fails
+      customers.value = clone(initialCustomers);
+    }
+  } catch (error) {
+    console.error('Error loading packages from backend:', error);
+    // Keep using the hardcoded data if backend fails
+    customers.value = clone(initialCustomers);
+  }
+};
+
 onMounted(() => {
   document.addEventListener("click", handleClickAway);
+  loadPackagesFromBackend();
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleClickAway);
 });
 </script>
+
+<style>
+/* Packages Page Styles */
+.packages-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  color: white;
+}
+
+.packages-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+}
+
+.packages-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+}
+
+.packages-subtitle {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 1rem;
+}
+
+.packages-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.packages-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.packages-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.packages-card-status {
+  display: flex;
+  gap: 1rem;
+  align-items: start;
+  border-left: 4px solid #10b981;
+}
+
+.packages-card-icon {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.packages-card-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0 0 0.5rem 0;
+  font-weight: 500;
+}
+
+.packages-card-value {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
+  color: #111827;
+}
+
+.packages-card-meta {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.packages-stat {
+  text-align: center;
+}
+
+.packages-stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  color: #111827;
+}
+
+.packages-stat-success {
+  color: #10b981;
+}
+
+.packages-stat-warning {
+  color: #f59e0b;
+}
+
+.packages-stat-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+  font-weight: 500;
+}
+
+.packages-controls {
+  margin-bottom: 1.5rem;
+}
+
+.packages-search {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  transition: border-color 0.2s;
+}
+
+.packages-search:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.packages-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.packages-filter-btn {
+  padding: 0.5rem 1rem;
+  border: 2px solid #e5e7eb;
+  background: white;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.packages-filter-btn:hover {
+  border-color: #667eea;
+  background: #f5f7ff;
+}
+
+.packages-filter-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.packages-table-shell {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+
+.packages-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.packages-table thead {
+  background: #f9fafb;
+}
+
+.packages-table th {
+  padding: 1rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.packages-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.packages-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.packages-id {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #667eea;
+}
+
+.packages-tracking {
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.packages-status {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.packages-sync-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.packages-sync-synced {
+  background: #d1fae5;
+  color: #065f46;
+}
+</style>

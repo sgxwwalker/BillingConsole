@@ -80,6 +80,21 @@ CREATE TABLE IF NOT EXISTS packages (
     deleted INTEGER DEFAULT 0,
     archived INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT (datetime('now')),
+    -- Courier Depot API fields
+    alt_name TEXT,
+    reason TEXT,
+    seller TEXT,
+    length REAL DEFAULT 0,
+    width REAL DEFAULT 0,
+    height REAL DEFAULT 0,
+    cubic_feet REAL DEFAULT 0,
+    location TEXT,
+    invoice_url TEXT,
+    package_image_url TEXT,
+    pre_alert INTEGER DEFAULT 0,
+    email_sent INTEGER DEFAULT 0,
+    paid INTEGER DEFAULT 0,
+    warehouse_date DATE,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 
@@ -128,6 +143,7 @@ CREATE TABLE IF NOT EXISTS api_config (
     api_key TEXT,
     email TEXT,
     password TEXT,
+    user_id TEXT,
     timeout INTEGER DEFAULT 30000,
     environment TEXT DEFAULT 'production',
     maintenance_mode INTEGER DEFAULT 0,
@@ -156,6 +172,7 @@ CREATE TABLE IF NOT EXISTS shipment_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     log_name TEXT NOT NULL,
     shipment_date DATE NOT NULL,
+    cargo_type TEXT DEFAULT 'Air Cargo',
     uploaded_by TEXT,
     created_at DATETIME DEFAULT (datetime('now'))
 );
@@ -165,10 +182,12 @@ CREATE TABLE IF NOT EXISTS shipment_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     shipment_log_id INTEGER NOT NULL,
     package_id TEXT,
+    code TEXT,
     customer_name TEXT NOT NULL,
     alt_name TEXT,
     tracking_number TEXT NOT NULL,
     weight REAL,
+    description TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     scanned_at DATETIME,
     scanned_by TEXT,
@@ -195,6 +214,10 @@ CREATE INDEX IF NOT EXISTS idx_packages_deleted ON packages(deleted);
 CREATE INDEX IF NOT EXISTS idx_packages_archived ON packages(archived);
 CREATE INDEX IF NOT EXISTS idx_packages_external_id ON packages(external_package_id);
 CREATE INDEX IF NOT EXISTS idx_packages_tracking ON packages(tracking_number);
+CREATE INDEX IF NOT EXISTS idx_packages_location ON packages(location);
+CREATE INDEX IF NOT EXISTS idx_packages_paid ON packages(paid);
+CREATE INDEX IF NOT EXISTS idx_packages_warehouse_date ON packages(warehouse_date);
+CREATE INDEX IF NOT EXISTS idx_packages_pre_alert ON packages(pre_alert);
 CREATE INDEX IF NOT EXISTS idx_package_notes_package_id ON package_notes(package_id);
 CREATE INDEX IF NOT EXISTS idx_collection_logs_date ON collection_logs(date);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);

@@ -208,6 +208,21 @@ app.get('/api/customers', (req, res) => {
           collected: Boolean(pkg.collected),
           deleted: Boolean(pkg.deleted),
           archived: Boolean(pkg.archived),
+          // Courier Depot fields
+          altName: pkg.alt_name,
+          reason: pkg.reason,
+          seller: pkg.seller,
+          length: pkg.length,
+          width: pkg.width,
+          height: pkg.height,
+          cubicFeet: pkg.cubic_feet,
+          location: pkg.location,
+          invoiceUrl: pkg.invoice_url,
+          packageImageUrl: pkg.package_image_url,
+          preAlert: Boolean(pkg.pre_alert),
+          emailSent: Boolean(pkg.email_sent),
+          paid: Boolean(pkg.paid),
+          warehouseDate: pkg.warehouse_date,
         };
       });
 
@@ -225,6 +240,18 @@ app.get('/api/customers', (req, res) => {
   } catch (error) {
     console.error('Error fetching customers:', error);
     res.status(500).json({ error: 'Failed to fetch customers' });
+  }
+});
+
+// Create customer
+app.post('/api/customers', (req, res) => {
+  try {
+    const customer = req.body;
+    customerQueries.create(customer);
+    res.json({ success: true, message: 'Customer created successfully' });
+  } catch (error) {
+    console.error('Error creating customer:', error);
+    res.status(500).json({ error: 'Failed to create customer' });
   }
 });
 
@@ -705,7 +732,7 @@ app.get('/api/shipment-logs/:id', (req, res) => {
 // Upload CSV shipment log
 app.post('/api/shipment-logs/upload', upload.single('file'), (req, res) => {
   try {
-    const { shipmentDate, uploadedBy } = req.body;
+    const { shipmentDate, cargoType, uploadedBy } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -723,6 +750,7 @@ app.post('/api/shipment-logs/upload', upload.single('file'), (req, res) => {
     const logResult = shipmentLogQueries.create({
       logName: req.file.originalname,
       shipmentDate: shipmentDate || new Date().toISOString().split('T')[0],
+      cargoType: cargoType || 'Air Cargo',
       uploadedBy: uploadedBy || 'System',
     });
 
@@ -737,10 +765,12 @@ app.post('/api/shipment-logs/upload', upload.single('file'), (req, res) => {
         shipmentItemQueries.create({
           shipmentLogId,
           packageId: record['Package ID'] || record['package_id'] || record['ID'] || record['id'] || null,
-          customerName: record['Customer Name'] || record['customer_name'] || record['User Name'] || record['user_name'] || record['Name'] || record['name'] || '',
+          code: record['Code'] || record['code'] || record['Courier'] || record['courier'] || null,
+          customerName: record['Customer Name'] || record['customer_name'] || record['User Name'] || record['user_name'] || record['Customer'] || record['customer'] || record['Name'] || record['name'] || '',
           altName: record['Alt Name'] || record['alt_name'] || null,
           trackingNumber: record['Tracking Number'] || record['tracking_number'] || record['Tracking'] || record['tracking'] || '',
           weight: parseFloat(record['Weight'] || record['weight'] || record['Weight (LB)'] || record['weight_lb']) || null,
+          description: record['Description'] || record['description'] || null,
           status: 'pending',
         });
         successCount++;
@@ -883,6 +913,59 @@ app.post('/api/shipment-logs/move-item', (req, res) => {
   }
 });
 
+// Delete shipment item
+app.delete('/api/shipment-items/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Item ID is required' });
+    }
+
+    shipmentItemQueries.delete(id);
+
+    res.json({
+      success: true,
+      message: 'Shipment item deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting shipment item:', error);
+    res.status(500).json({ error: 'Failed to delete shipment item' });
+  }
+});
+
+// Add new shipment item
+app.post('/api/shipment-items', (req, res) => {
+  try {
+    const { shipmentLogId, packageId, code, customerName, altName, trackingNumber, weight, description } = req.body;
+
+    if (!shipmentLogId || !customerName || !trackingNumber) {
+      return res.status(400).json({ error: 'Shipment log ID, customer name, and tracking number are required' });
+    }
+
+    const result = shipmentItemQueries.create({
+      shipmentLogId,
+      packageId: packageId || null,
+      code: code || null,
+      customerName,
+      altName: altName || null,
+      trackingNumber,
+      weight: weight || null,
+      description: description || null,
+      status: 'pending',
+    });
+
+    res.json({
+      success: true,
+      message: 'Shipment item added successfully',
+      itemId: result.lastInsertRowid,
+    });
+  } catch (error) {
+    console.error('Error adding shipment item:', error);
+    res.status(500).json({ error: 'Failed to add shipment item' });
+  }
+});
+
 // Update shipment item
 app.put('/api/shipment-items/:id', (req, res) => {
   try {
@@ -956,6 +1039,59 @@ app.delete('/api/shipment-logs/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting shipment log:', error);
     res.status(500).json({ error: 'Failed to delete shipment log' });
+  }
+});
+
+// Get all not found scans across all logs
+app.get('/api/not-found-scans', (req, res) => {
+  try {
+    const scans = notFoundScanQueries.getAll();
+    res.json({ success: true, scans });
+  } catch (error) {
+    console.error('Error fetching not found scans:', error);
+    res.status(500).json({ error: 'Failed to fetch not found scans' });
+  }
+});
+
+// Add a not found scan to a shipment log
+app.post('/api/shipment-items/add-not-found', (req, res) => {
+  try {
+    const { shipmentLogId, trackingNumber, customerName, altName, weight, scannedBy } = req.body;
+
+    if (!shipmentLogId || !trackingNumber || !customerName) {
+      return res.status(400).json({ error: 'Shipment log ID, tracking number, and customer name are required' });
+    }
+
+    // Add the item to the shipment log
+    const result = shipmentItemQueries.create({
+      shipmentLogId,
+      trackingNumber,
+      customerName,
+      altName: altName || '',
+      packageId: null,
+      weight: weight || null,
+      status: 'pending',
+    });
+
+    // Delete the not found scan record since it's now been added to a log
+    db.prepare('DELETE FROM not_found_scans WHERE tracking_number = ?').run(trackingNumber);
+
+    res.json({ success: true, message: 'Package added to shipment log successfully', itemId: result.lastInsertRowid });
+  } catch (error) {
+    console.error('Error adding not found scan to log:', error);
+    res.status(500).json({ error: 'Failed to add package to log' });
+  }
+});
+
+// Delete a not found scan
+app.delete('/api/not-found-scans/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    notFoundScanQueries.delete(id);
+    res.json({ success: true, message: 'Not found scan deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting not found scan:', error);
+    res.status(500).json({ error: 'Failed to delete not found scan' });
   }
 });
 
@@ -1189,24 +1325,34 @@ app.post('/api/settings/api-config/test', async (req, res) => {
       return res.status(400).json({ error: 'API base URL not configured' });
     }
 
-    // Test connection with a simple request
-    const testClient = axios.create({
-      baseURL: config.base_url,
+    if (!config.email || !config.password) {
+      return res.status(400).json({ error: 'API credentials (email and password) not configured' });
+    }
+
+    // Test authentication with the Courier Depot API
+    const response = await axios.post(`${config.base_url}/api/auth/signin`, {
+      email: config.email,
+      password: config.password,
+    }, {
       timeout: config.timeout || 30000,
       headers: {
         'Content-Type': 'application/json',
-        ...(config.api_key && { Authorization: `Bearer ${config.api_key}` }),
       },
     });
 
-    await testClient.get('/health');
-    res.json({ success: true, message: 'API connection successful' });
+    // Check if authentication was successful
+    if (response.data && (response.data.success || response.data.token || response.data.user)) {
+      res.json({ success: true, message: 'API connection and authentication successful!' });
+    } else {
+      res.json({ success: true, message: 'Connection successful but unexpected response format' });
+    }
   } catch (error) {
     console.error('API connection test failed:', error);
+    const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
     res.status(500).json({
       success: false,
       error: 'API connection failed',
-      message: error.message
+      message: errorMessage
     });
   }
 });
@@ -1219,6 +1365,96 @@ app.get('/api/settings/sync-logs', (req, res) => {
   } catch (error) {
     console.error('Error fetching sync logs:', error);
     res.status(500).json({ error: 'Failed to fetch sync logs' });
+  }
+});
+
+// ==================== COURIER DEPOT API PROXY ENDPOINTS ====================
+
+// Proxy: Sign in to Courier Depot API
+app.post('/api/courier-depot/signin', async (req, res) => {
+  try {
+    const config = apiConfigQueries.get();
+
+    if (!config || !config.base_url || !config.email || !config.password) {
+      return res.status(400).json({ error: 'Courier Depot API not configured. Please configure in Settings.' });
+    }
+
+    // Authenticate with Courier Depot API
+    const response = await axios.post(`${config.base_url}/api/auth/signin`, {
+      email: config.email,
+      password: config.password,
+    }, {
+      timeout: config.timeout || 30000,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    res.json({ success: true, data: response.data });
+  } catch (error) {
+    console.error('Courier Depot signin failed:', error);
+    res.status(error.response?.status || 500).json({
+      error: 'Authentication failed',
+      message: error.response?.data?.message || error.message
+    });
+  }
+});
+
+// Proxy: Fetch packages from Courier Depot API
+app.post('/api/courier-depot/sync-packages', async (req, res) => {
+  try {
+    const config = apiConfigQueries.get();
+    const { accessToken } = req.body;
+
+    if (!config || !config.base_url || !config.user_id) {
+      return res.status(400).json({ error: 'Courier Depot API not configured. Please configure API settings.' });
+    }
+
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Access token is required' });
+    }
+
+    // Fetch packages from Courier Depot API using user_id from config
+    const response = await axios.get(`${config.base_url}/userpackage/${config.user_id}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: config.timeout || 30000,
+    });
+
+    const packages = response.data;
+
+    // Extract actual package count from nested structure
+    const packageList = packages?.packages?.packlist || packages?.packlist || packages;
+    const packageCount = Array.isArray(packageList) ? packageList.length : 0;
+
+    // Log the sync
+    apiSyncLogQueries.create({
+      status: 'success',
+      message: `Fetched ${packageCount} packages from Courier Depot API`,
+      syncedBy: req.body.syncedBy || 'System',
+      recordsCreated: 0,
+      recordsUpdated: 0,
+      errors: 0,
+    });
+
+    res.json({ success: true, packages });
+  } catch (error) {
+    console.error('Courier Depot package fetch failed:', error);
+
+    // Log the failed sync
+    apiSyncLogQueries.create({
+      status: 'error',
+      message: `Failed to fetch packages: ${error.message}`,
+      syncedBy: req.body.syncedBy || 'System',
+      recordsCreated: 0,
+      recordsUpdated: 0,
+      errors: 1,
+    });
+
+    res.status(error.response?.status || 500).json({
+      error: 'Failed to fetch packages',
+      message: error.response?.data?.message || error.message
+    });
   }
 });
 

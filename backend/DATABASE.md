@@ -37,6 +37,7 @@ The shipping dashboard now uses **SQLite** for data persistence. All data is sto
 ```sql
 - id (INTEGER, PRIMARY KEY, AUTOINCREMENT): Internal ID
 - package_id (TEXT, UNIQUE): Package identifier (e.g., PKG-1001)
+- external_package_id (TEXT): External API package ID
 - customer_id (TEXT, FOREIGN KEY): References customers(id)
 - tracking_number (TEXT): Shipping tracking number
 - status (TEXT): Package status
@@ -52,7 +53,22 @@ The shipping dashboard now uses **SQLite** for data persistence. All data is sto
 - updated_by (TEXT): User who last updated
 - collected (INTEGER/BOOLEAN): Whether package was collected
 - deleted (INTEGER/BOOLEAN): Soft delete flag
+- archived (INTEGER/BOOLEAN): Archive flag
 - created_at (DATETIME): Record creation timestamp
+- alt_name (TEXT): Alternative customer name
+- reason (TEXT): Reason/notes field
+- seller (TEXT): Seller information
+- length (REAL): Package length
+- width (REAL): Package width
+- height (REAL): Package height
+- cubic_feet (REAL): Cubic feet calculation
+- location (TEXT): Current package location
+- invoice_url (TEXT): Invoice PDF URL
+- package_image_url (TEXT): Package image URL
+- pre_alert (INTEGER/BOOLEAN): Pre-alert flag
+- email_sent (INTEGER/BOOLEAN): Email notification sent
+- paid (INTEGER/BOOLEAN): Payment status
+- warehouse_date (DATE): Warehouse received date
 ```
 
 #### 4. **package_notes** - Package Notes/Comments
