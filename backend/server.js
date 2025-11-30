@@ -443,7 +443,7 @@ app.put('/api/packages/:id', async (req, res) => {
           packageId: existingPkg.external_package_id,
           status: pkg.status,
         });
-        console.log(`✅ Synced status update to external platform for package ${id}`);
+        console.log(`Synced status update to external platform for package ${id}`);
       } catch (syncError) {
         console.error('Error syncing to external platform:', syncError);
         // Don't fail the whole request if external sync fails
@@ -983,9 +983,9 @@ app.post('/api/shipment-logs/scan', (req, res) => {
             createdBy: scannedBy || 'System',
           });
 
-          console.log(`✅ Dual update: Package ${matchingPackage.package_id} status updated to "Processing in Office"`);
+          console.log(`Dual update: Package ${matchingPackage.package_id} status updated to "Processing in Office"`);
         } else {
-          console.log(`ℹ️  No matching package found for tracking number: ${trackingNumber}`);
+          console.log(`No matching package found for tracking number: ${trackingNumber}`);
         }
       } catch (updateError) {
         console.error('Error updating customer package status:', updateError);
@@ -1878,7 +1878,7 @@ app.get('/api/settings/maintenance-mode', (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`\n🚀 Backend server running on http://localhost:${port}`);
-  console.log('📊 Database: SQLite (shipping.db)');
-  console.log('✅ Ready to accept requests\n');
+  console.log(`\nBackend server running on http://localhost:${port}`);
+  console.log('Database: SQLite (shipping.db)');
+  console.log('Ready to accept requests\n');
 });

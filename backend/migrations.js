@@ -5,14 +5,14 @@ import db from './database.js';
  */
 export function runMigrations() {
   try {
-    console.log('🔄 Running database migrations...');
+    console.log('Running database migrations...');
 
     // Add billing columns to shipment_items table (Migration 001)
     addBillingColumnsToShipmentItems();
 
-    console.log('✅ All migrations completed');
+    console.log('All migrations completed');
   } catch (error) {
-    console.error('❌ Error running migrations:', error);
+    console.error('Error running migrations:', error);
   }
 }
 
@@ -79,11 +79,11 @@ function addBillingColumnsToShipmentItems() {
     }
 
     if (addedColumns.length > 0) {
-      console.log(`  ✅ Added ${addedColumns.length} billing columns to shipment_items:`, addedColumns.join(', '));
+      console.log(`  Added ${addedColumns.length} billing columns to shipment_items:`, addedColumns.join(', '));
     } else {
-      console.log('  ℹ️  Billing columns already exist in shipment_items');
+      console.log('  Billing columns already exist in shipment_items');
     }
   } catch (error) {
-    console.error('  ❌ Error adding billing columns:', error.message);
+    console.error('  Error adding billing columns:', error.message);
   }
 }

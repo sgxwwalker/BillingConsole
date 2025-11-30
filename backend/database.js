@@ -22,14 +22,14 @@ export function initDatabase() {
     // Execute schema directly (already SQLite compatible)
     db.exec(schemaSQL);
 
-    console.log('✅ Database schema initialized');
+    console.log('Database schema initialized');
 
     // Run migrations after schema initialization
     import('./migrations.js').then(({ runMigrations }) => {
       runMigrations();
     });
   } catch (error) {
-    console.error('❌ Error initializing database:', error);
+    console.error('Error initializing database:', error);
     throw error;
   }
 }
@@ -40,7 +40,7 @@ export function seedDatabase() {
     // Check if already seeded
     const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
     if (userCount.count > 0) {
-      console.log('ℹ️  Database already seeded');
+      console.log('Database already seeded');
 
       // Seed permissions even if users exist (for upgrades)
       seedPermissions();
@@ -64,12 +64,12 @@ export function seedDatabase() {
       }
     }
 
-    console.log('✅ Database seeded with initial data');
+    console.log('Database seeded with initial data');
 
     // Seed permissions and roles
     seedPermissions();
   } catch (error) {
-    console.error('❌ Error seeding database:', error);
+    console.error('Error seeding database:', error);
   }
 }
 
@@ -79,7 +79,7 @@ function seedPermissions() {
     // Check if permissions already seeded
     const permCount = db.prepare('SELECT COUNT(*) as count FROM permissions').get();
     if (permCount.count > 0) {
-      console.log('ℹ️  Permissions already seeded');
+      console.log('Permissions already seeded');
       return;
     }
 
@@ -97,9 +97,9 @@ function seedPermissions() {
       }
     }
 
-    console.log('✅ Permissions and roles seeded');
+    console.log('Permissions and roles seeded');
   } catch (error) {
-    console.error('❌ Error seeding permissions:', error);
+    console.error('Error seeding permissions:', error);
   }
 }
 

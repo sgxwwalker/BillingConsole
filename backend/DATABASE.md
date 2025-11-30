@@ -247,14 +247,14 @@ The `schema.sql` file is PostgreSQL-compatible for future migration. To migrate:
 
 ## Security Considerations
 
-⚠️ **IMPORTANT**: Current implementation is for development only!
+**IMPORTANT**: Current implementation is for development only!
 
 ### Production Recommendations:
 1. **Hash passwords** - Use bcrypt or argon2
 2. **JWT authentication** - Replace plain password auth
 3. **Environment variables** - Store sensitive data in .env
 4. **Input validation** - Sanitize all user inputs
-5. **SQL injection protection** - Already using prepared statements ✓
+5. **SQL injection protection** - Already using prepared statements
 6. **HTTPS** - Use SSL/TLS in production
 7. **Rate limiting** - Prevent abuse
 8. **CORS** - Restrict allowed origins

@@ -403,7 +403,7 @@
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Cash</h4>
                 <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
-                  💵 Cash
+                  Cash
                 </span>
               </div>
               <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
@@ -423,7 +423,7 @@
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">POS</h4>
                 <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
-                  💳 POS
+                  POS
                 </span>
               </div>
               <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
@@ -443,7 +443,7 @@
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Transfer</h4>
                 <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
-                  🏦 Transfer
+                  Transfer
                 </span>
               </div>
               <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
@@ -463,7 +463,7 @@
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Credit Card</h4>
                 <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
-                  💎 Credit
+                  Credit
                 </span>
               </div>
               <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
@@ -484,7 +484,7 @@
         <div v-if="activeDailyMethod" class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main);">
-              {{ activeDailyMethod === 'cash' ? '💵 Cash' : activeDailyMethod === 'pos' ? '💳 POS' : activeDailyMethod === 'transfer' ? '🏦 Transfer' : '💎 Credit Card' }} Breakdown
+              {{ activeDailyMethod === 'cash' ? 'Cash' : activeDailyMethod === 'pos' ? 'POS' : activeDailyMethod === 'transfer' ? 'Transfer' : 'Credit Card' }} Breakdown
             </h3>
             <button class="pill ghost" type="button" @click="activeDailyMethod = null">← Back to Overview</button>
           </div>
@@ -896,7 +896,7 @@
         <!-- Environment Controls Section (Maintenance Mode) -->
         <div class="card" style="margin-bottom: 32px; border-left: 4px solid #ef4444;" v-if="activeSettingsTab === 'environment' && currentUser?.role === 'full_control'">
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">⚙️ Environment Controls</h3>
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Environment Controls</h3>
             <p class="muted">System-wide settings and maintenance controls</p>
           </div>
 
@@ -904,7 +904,7 @@
             <div>
               <strong style="font-size: 16px; color: var(--text-main);">Maintenance Mode</strong>
               <p class="muted" style="margin-top: 4px;">When enabled, only administrators can access the system</p>
-              <p v-if="maintenanceMode" style="color: #ef4444; font-weight: 600; margin-top: 8px;">⚠️ Maintenance mode is currently ENABLED</p>
+              <p v-if="maintenanceMode" style="color: #ef4444; font-weight: 600; margin-top: 8px;">Maintenance mode is currently ENABLED</p>
             </div>
             <label class="toggle-switch">
               <input type="checkbox" :checked="maintenanceMode" @change="toggleMaintenanceModeFunc" />
@@ -1086,7 +1086,7 @@
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">🔌 Courier Depot API Configuration</h3>
+                <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Courier Depot API Configuration</h3>
                 <p class="muted">Configure Courier Depot SaaS platform integration and authentication</p>
               </div>
               <button
@@ -1095,14 +1095,14 @@
                 type="button"
                 @click="isEditingApiConfig = true"
               >
-                🔒 Edit Credentials
+                Edit Credentials
               </button>
             </div>
           </div>
 
           <div class="form-grid">
             <label style="grid-column: 1 / -1;">
-              <span class="input-label">🌐 Authentication Endpoint</span>
+              <span class="input-label">Authentication Endpoint</span>
               <input
                 v-model="apiConfigForm.baseUrl"
                 type="url"
@@ -1114,7 +1114,7 @@
             </label>
 
             <label>
-              <span class="input-label">📧 Authentication Email</span>
+              <span class="input-label">Authentication Email</span>
               <input
                 v-model="apiConfigForm.email"
                 type="email"
@@ -1125,7 +1125,7 @@
             </label>
 
             <label>
-              <span class="input-label">🔒 Authentication Password</span>
+              <span class="input-label">Authentication Password</span>
               <div style="position: relative;">
                 <input
                   v-model="apiConfigForm.password"
@@ -1137,13 +1137,13 @@
                 />
                 <button type="button" @click="showApiPassword = !showApiPassword"
                   style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #64748b; font-size: 18px;">
-                  {{ showApiPassword ? '👁️' : '👁️‍🗨️' }}
+                  {{ showApiPassword ? 'Hide' : 'Show' }}
                 </button>
               </div>
             </label>
 
             <label>
-              <span class="input-label">👤 User ID</span>
+              <span class="input-label">User ID</span>
               <input
                 v-model="apiConfigForm.userId"
                 type="text"
@@ -1156,13 +1156,13 @@
           </div>
 
           <div v-if="isEditingApiConfig" style="display: flex; gap: 12px; margin-top: 24px;">
-            <button class="pill" type="button" @click="saveApiConfig">💾 Save Configuration</button>
+            <button class="pill" type="button" @click="saveApiConfig">Save Configuration</button>
             <button class="pill ghost" type="button" @click="isEditingApiConfig = false">Cancel</button>
           </div>
 
           <div v-else style="display: flex; gap: 12px; margin-top: 24px;">
-            <button class="pill ghost" type="button" @click="testApiConnection">🔍 Test Connection</button>
-            <button class="pill ghost" type="button" @click="triggerApiSync">🔄 Sync Now</button>
+            <button class="pill ghost" type="button" @click="testApiConnection">Test Connection</button>
+            <button class="pill ghost" type="button" @click="triggerApiSync">Sync Now</button>
           </div>
 
           <p v-if="apiTestMessage" :style="{ marginTop: '16px', color: apiTestStatus === 'success' ? '#10b981' : apiTestStatus === 'error' ? '#ef4444' : '#64748b' }">
@@ -1206,7 +1206,7 @@
         <!-- Notification Preferences (Keep existing) -->
         <div class="card" v-if="activeSettingsTab === 'notifications'">
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">🔔 Notification Preferences</h3>
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Notification Preferences</h3>
             <p class="muted">Configure how you want to receive notifications</p>
           </div>
 
@@ -1262,7 +1262,7 @@
         <!-- CARDS VIEW: Show when no active log is selected -->
         <div v-if="!activeShipmentLogId && shipmentLogs.length > 0">
           <div style="margin-bottom: 20px;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">📦 All Shipment Logs</h3>
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">All Shipment Logs</h3>
             <p class="muted">Click on a log to start scanning packages</p>
           </div>
 
@@ -1285,7 +1285,7 @@
                   padding: '6px 12px',
                   borderRadius: '6px'
                 }">
-                  {{ log.cargo_type === 'Ocean Cargo' ? '🚢' : log.cargo_type === 'China Cargo' ? '🇨🇳' : '✈️' }} {{ log.cargo_type || 'Air Cargo' }}
+                  {{ log.cargo_type || 'Air Cargo' }}
                 </span>
               </div>
 
@@ -1319,12 +1319,12 @@
           <!-- Shipment Log Header with Details -->
           <div class="card" style="margin-bottom: 24px; padding: 20px; background: linear-gradient(135deg, #002d62 0%, #00aeef 100%); color: white;">
             <h2 style="font-size: 28px; font-weight: 700; margin-bottom: 12px; color: white;">
-              ✈️ {{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.log_name || 'Shipment Log' }}
+              {{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.log_name || 'Shipment Log' }}
             </h2>
             <div style="display: flex; gap: 24px; font-size: 14px; opacity: 0.95;">
-              <span>📅 {{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.shipment_date }}</span>
-              <span>👤 {{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.uploaded_by || 'Unknown' }}</span>
-              <span>{{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.cargo_type === 'Ocean Cargo' ? '🚢' : shipmentLogs.find(l => l.id === activeShipmentLogId)?.cargo_type === 'China Cargo' ? '🇨🇳' : '✈️' }} {{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.cargo_type || 'Air Cargo' }}</span>
+              <span>{{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.shipment_date }}</span>
+              <span>{{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.uploaded_by || 'Unknown' }}</span>
+              <span>{{ shipmentLogs.find(l => l.id === activeShipmentLogId)?.cargo_type || 'Air Cargo' }}</span>
             </div>
           </div>
 
@@ -1333,7 +1333,7 @@
             <!-- LEFT: Scan Tracking Numbers Card -->
             <div class="card" :class="{ 'disabled-card': !hasPermission('scanPackages') }" style="padding: 24px; border: 2px dashed #cbd5e1;">
               <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 16px; color: var(--text-main);">
-                📱 Scan Tracking Numbers
+                Scan Tracking Numbers
               </h3>
               <p class="muted" style="margin-bottom: 16px; font-size: 13px;">Scan tracking number or press Enter...</p>
               <input
@@ -1356,7 +1356,7 @@
             <!-- RIGHT: Shipment Info Card with 2x2 Grid -->
             <div class="card" style="padding: 24px; border: 2px solid #fbbf24;">
               <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 16px; color: var(--text-main);">
-                📊 Shipment Info
+                Shipment Info
               </h3>
               <!-- 2x2 Statistics Grid -->
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
@@ -1387,7 +1387,7 @@
           <!-- Package Table Section -->
           <div v-if="shipmentItems.length > 0">
             <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 16px;">
-              📊 Shipment Data by Courier
+              Shipment Data by Courier
             </h3>
 
             <!-- Search Bar -->
@@ -1491,9 +1491,9 @@
                         backgroundColor: item.status === 'received' ? '#10b981' : item.status === 'pending' ? '#eab308' : '#ef4444'
                       }"
                     >
-                      <option value="received">✓ Received</option>
-                      <option value="pending">⏳ Pending</option>
-                      <option value="not_found">✗ Not Found</option>
+                      <option value="received">Received</option>
+                      <option value="pending">Pending</option>
+                      <option value="not_found">Not Found</option>
                     </select>
                     <span v-else class="tag" :style="{
                       background: item.status === 'received' ? '#10b981' : item.status === 'pending' ? '#f59e0b' : '#ef4444',
@@ -1534,13 +1534,17 @@
     </main>
 
     <div class="modal" v-if="modals.add">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Manual entry</p>
-            <h3>Add package</h3>
+            <h3>Add Package</h3>
+            <p class="modal-subtitle">Manual entry</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="closeModal('add')">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="closeModal('add')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmAddPackage">
           <div class="form-grid">
@@ -1598,13 +1602,17 @@
     </div>
 
     <div class="modal" v-if="modals.view">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Package detail</p>
-            <h3>{{ viewPackage?.packageId }}</h3>
+            <h3>Package Details</h3>
+            <p class="modal-subtitle">{{ viewPackage?.packageId }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="modals.view = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="modals.view = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div class="form-grid">
           <div>
@@ -1673,13 +1681,17 @@
     </div>
 
     <div class="modal" v-if="orderModals.add">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">SGX Order</p>
-            <h3>Add order</h3>
+            <h3>Add Order</h3>
+            <p class="modal-subtitle">SGX Order</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="orderModals.add = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="orderModals.add = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmOrderAdd">
           <div class="form-grid">
@@ -1726,13 +1738,17 @@
     </div>
 
     <div class="modal" v-if="orderModals.edit">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">SGX Order</p>
-            <h3>Edit order</h3>
+            <h3>Edit Order</h3>
+            <p class="modal-subtitle">SGX Order</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="orderModals.edit = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="orderModals.edit = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmOrderEdit">
           <div class="form-grid">
@@ -1779,29 +1795,38 @@
     </div>
 
     <div class="modal" v-if="orderModals.delete">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Remove order</p>
-            <h3>Delete order</h3>
+            <h3>Delete Order</h3>
+            <p class="modal-subtitle">This action cannot be undone</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="orderModals.delete = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="orderModals.delete = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
-        <div class="modal-actions">
+        <p class="muted" style="margin-bottom: 20px;">Are you sure you want to delete this order? This action cannot be undone.</p>
+        <div class="modal-footer">
           <button class="pill ghost" type="button" @click="orderModals.delete = false">Cancel</button>
-          <button class="pill danger" type="button" @click="confirmOrderDelete">Delete</button>
+          <button class="pill danger" type="button" @click="confirmOrderDelete">Delete Order</button>
         </div>
       </div>
     </div>
 
     <div class="modal" v-if="modals.collection">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Receipt</p>
-            <h3>{{ collectionTitle }}</h3>
+            <h3>Collect Payment</h3>
+            <p class="modal-subtitle">{{ collectionTitle }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="closeModal('collection')">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="closeModal('collection')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmCollection">
           <div style="margin-bottom: 1rem; padding: 0.75rem; background: #f5f5f5; border-radius: 8px;">
@@ -1852,13 +1877,17 @@
     </div>
 
     <div class="modal" v-if="modals.edit">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Update package</p>
-            <h3>{{ editTitle }}</h3>
+            <h3>Edit Package</h3>
+            <p class="modal-subtitle">{{ editTitle }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="closeModal('edit')">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="closeModal('edit')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmEdit">
           <div class="form-grid">
@@ -1892,13 +1921,17 @@
     </div>
 
     <div class="modal" v-if="modals.delete">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Remove package</p>
-            <h3>{{ deleteTitle }}</h3>
+            <h3>Delete Package</h3>
+            <p class="modal-subtitle">{{ deleteTitle }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="closeModal('delete')">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="closeModal('delete')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmDelete">
           <p class="muted">This hides the package from the pickup console only. Add a quick note for the audit trail.</p>
@@ -2226,13 +2259,17 @@
     </div>
 
     <div class="modal" v-if="userModals.add">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">User management</p>
-            <h3>Add new user</h3>
+            <h3>Add New User</h3>
+            <p class="modal-subtitle">User management</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="userModals.add = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="userModals.add = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmUserAdd">
           <div class="form-grid">
@@ -2267,13 +2304,17 @@
     </div>
 
     <div class="modal" v-if="userModals.edit">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">User management</p>
-            <h3>Edit user</h3>
+            <h3>Edit User</h3>
+            <p class="modal-subtitle">User management</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="userModals.edit = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="userModals.edit = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmUserEdit">
           <div class="form-grid">
@@ -2308,32 +2349,38 @@
     </div>
 
     <div class="modal" v-if="userModals.delete">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">User management</p>
-            <h3>Delete user</h3>
+            <h3>Delete User</h3>
+            <p class="modal-subtitle">{{ userDeleteTarget?.name }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="userModals.delete = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="userModals.delete = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
-        <div>
-          <p class="muted">Are you sure you want to delete {{ userDeleteTarget?.name }}? This action cannot be undone.</p>
-        </div>
-        <div class="modal-actions">
+        <p class="muted" style="margin-bottom: 20px;">Are you sure you want to delete this user? This action cannot be undone.</p>
+        <div class="modal-footer">
           <button class="pill ghost" type="button" @click="userModals.delete = false">Cancel</button>
-          <button class="pill danger" type="button" @click="confirmUserDelete">Delete user</button>
+          <button class="pill danger" type="button" @click="confirmUserDelete">Delete User</button>
         </div>
       </div>
     </div>
 
     <div class="modal" v-if="userModals.permissions">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">User management</p>
-            <h3>Configure permissions - {{ permissionTarget?.name }}</h3>
+            <h3>Configure Permissions</h3>
+            <p class="modal-subtitle">{{ permissionTarget?.name }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="userModals.permissions = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="userModals.permissions = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div class="card">
           <p class="muted">Customize individual permissions for this user. Setting a predefined role will override custom permissions.</p>
@@ -2419,13 +2466,17 @@
 
     <!-- Shipment Upload Modal -->
     <div class="modal" v-if="shipmentModals.upload">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Shipment Management</p>
             <h3>Upload Shipment Log</h3>
+            <p class="modal-subtitle">Shipment Management</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="shipmentModals.upload = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="shipmentModals.upload = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmShipmentUpload">
           <p class="muted">Upload a CSV file exported from Google Sheets with columns: Package ID, Code, Customer Name, Alt Name, Tracking Number, Weight, Description</p>
@@ -2437,9 +2488,9 @@
             <label>
               <span class="input-label">Cargo Type</span>
               <select v-model="shipmentUploadForm.cargoType" required style="padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;">
-                <option value="Air Cargo">✈️ Air Cargo</option>
-                <option value="Ocean Cargo">🚢 Ocean Cargo</option>
-                <option value="China Cargo">🇨🇳 China Cargo</option>
+                <option value="Air Cargo">Air Cargo</option>
+                <option value="Ocean Cargo">Ocean Cargo</option>
+                <option value="China Cargo">China Cargo</option>
               </select>
             </label>
             <label style="grid-column: 1 / -1;">
@@ -2457,13 +2508,17 @@
 
     <!-- Move Package Confirmation Modal -->
     <div class="modal" v-if="shipmentModals.moveConfirm">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Package Found in Another Log</p>
             <h3>Move Package?</h3>
+            <p class="modal-subtitle">Package Found in Another Log</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="shipmentModals.moveConfirm = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="shipmentModals.moveConfirm = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div>
           <p class="muted">This package was found in: <strong>{{ movePackageData.log?.log_name }} ({{ movePackageData.log?.shipment_date }})</strong></p>
@@ -2480,13 +2535,17 @@
 
     <!-- Edit Shipment Log Modal -->
     <div class="modal" v-if="shipmentModals.edit">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Shipment Management</p>
             <h3>Edit Shipment Log</h3>
+            <p class="modal-subtitle">Shipment Management</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="shipmentModals.edit = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="shipmentModals.edit = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmShipmentEdit">
           <div class="form-grid">
@@ -2509,13 +2568,17 @@
 
     <!-- Delete Shipment Log Modal -->
     <div class="modal" v-if="shipmentModals.delete">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Shipment Management</p>
             <h3>Delete Shipment Log</h3>
+            <p class="modal-subtitle">This action cannot be undone</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="shipmentModals.delete = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="shipmentModals.delete = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div>
           <p class="muted">Are you sure you want to delete this shipment log?</p>
@@ -2531,13 +2594,17 @@
 
     <!-- Add Shipment Item Modal -->
     <div class="modal" v-if="shipmentModals.addItem">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Package Management</p>
             <h3>Add New Package</h3>
+            <p class="modal-subtitle">Package Management</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="shipmentModals.addItem = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="shipmentModals.addItem = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmAddShipmentItem">
           <div class="form-grid">
@@ -2580,13 +2647,17 @@
 
     <!-- Edit Shipment Item Modal -->
     <div class="modal" v-if="shipmentModals.editItem">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Package Management</p>
             <h3>Edit Package</h3>
+            <p class="modal-subtitle">Package Management</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="shipmentModals.editItem = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="shipmentModals.editItem = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmItemEdit">
           <div class="form-grid">
@@ -2621,13 +2692,17 @@
 
     <!-- Move Shipment Item Modal -->
     <div class="modal" v-if="shipmentModals.moveItem">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Package Management</p>
-            <h3>Move Package to Different Shipment</h3>
+            <h3>Move Package</h3>
+            <p class="modal-subtitle">Move to Different Shipment</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="shipmentModals.moveItem = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="shipmentModals.moveItem = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div>
           <p class="muted" style="margin-bottom: 16px;">Select the shipment log you want to move this package to:</p>
@@ -2665,13 +2740,17 @@
   <!-- Create Role Modal -->
   <div v-if="roleModals.add">
     <div class="modal" @click.self="roleModals.add = false">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Role Management</p>
             <h3>Create New Role</h3>
+            <p class="modal-subtitle">Role Management</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="roleModals.add = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="roleModals.add = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div class="form-grid">
           <label>
@@ -2694,13 +2773,17 @@
   <!-- Edit Role Modal -->
   <div v-if="roleModals.edit">
     <div class="modal" @click.self="roleModals.edit = false">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Role Management</p>
             <h3>Edit Role</h3>
+            <p class="modal-subtitle">Role Management</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="roleModals.edit = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="roleModals.edit = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div class="form-grid">
           <label>
@@ -2723,13 +2806,17 @@
   <!-- Delete Role Modal -->
   <div v-if="roleModals.delete">
     <div class="modal" @click.self="roleModals.delete = false">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Role Management</p>
             <h3>Delete Role</h3>
+            <p class="modal-subtitle">{{ roleDeleteTarget?.name }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="roleModals.delete = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="roleModals.delete = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div>
           <p style="margin-bottom: 16px;">Are you sure you want to delete the role <strong>{{ roleDeleteTarget?.name }}</strong>?</p>
@@ -2746,13 +2833,17 @@
   <!-- Duplicate Role Modal -->
   <div v-if="roleModals.duplicate">
     <div class="modal" @click.self="roleModals.duplicate = false">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Role Management</p>
             <h3>Duplicate Role</h3>
+            <p class="modal-subtitle">{{ roleDuplicateTarget?.name }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="roleModals.duplicate = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="roleModals.duplicate = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div>
           <p class="muted" style="margin-bottom: 16px;">Duplicating role: <strong>{{ roleDuplicateTarget?.name }}</strong></p>
@@ -2772,13 +2863,17 @@
   <!-- Role Permissions Modal -->
   <div v-if="roleModals.permissions">
     <div class="modal" @click.self="roleModals.permissions = false">
-      <div class="modal-card large">
+      <div class="modal-card billing-modal large">
         <header>
           <div>
-            <p class="eyebrow">Permissions Management</p>
-            <h3>Manage Permissions for {{ rolePermissionsTarget?.name }}</h3>
+            <h3>Manage Permissions</h3>
+            <p class="modal-subtitle">{{ rolePermissionsTarget?.name }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="roleModals.permissions = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="roleModals.permissions = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div style="max-height: 500px; overflow-y: auto; padding-right: 8px;">
           <div v-for="(perms, category) in permissionsByCategory" :key="category" style="margin-bottom: 24px;">
@@ -2811,13 +2906,17 @@
   <!-- Password Reset Modal -->
   <div v-if="passwordResetModal">
     <div class="modal" @click.self="passwordResetModal = false">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">User Management</p>
             <h3>Reset Password</h3>
+            <p class="modal-subtitle">{{ passwordResetTarget?.name }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="passwordResetModal = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="passwordResetModal = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <div>
           <p class="muted" style="margin-bottom: 16px;">Resetting password for: <strong>{{ passwordResetTarget?.name }}</strong></p>
@@ -2835,13 +2934,17 @@
 
     <!-- Role Permission Modal -->
     <div v-if="rolePermissionModal" class="modal" @click.self="rolePermissionModal = false">
-      <div class="modal-card" style="max-width: 700px;">
+      <div class="modal-card billing-modal" style="max-width: 700px;">
         <header>
           <div>
-            <p class="eyebrow">{{ selectedRoleForPermissions }}</p>
             <h3>Role Permissions</h3>
+            <p class="modal-subtitle">{{ selectedRoleForPermissions }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="rolePermissionModal = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="rolePermissionModal = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
 
         <div style="max-height: 500px; overflow-y: auto; padding-right: 8px;">
@@ -4873,7 +4976,7 @@ const syncPackagesFromCourierDepot = async () => {
     const recentPackages = sortedPackages.slice(0, 50);
 
     // Log package IDs for verification
-    console.log(`📦 Fetching ${recentPackages.length} most recent packages:`);
+    console.log(`Fetching ${recentPackages.length} most recent packages:`);
     console.log(`Package IDs: ${recentPackages.slice(0, 10).map(p => p.id).join(', ')}${recentPackages.length > 10 ? '...' : ''}`);
 
     apiSyncStatus.value = `Processing ${recentPackages.length} packages...`;
@@ -4976,17 +5079,17 @@ const syncPackagesFromCourierDepot = async () => {
       }
     }
 
-    apiSyncStatus.value = `✓ Sync complete! Imported ${imported} new packages, updated ${updated} existing packages. Reloading...`;
+    apiSyncStatus.value = `Sync complete! Imported ${imported} new packages, updated ${updated} existing packages. Reloading...`;
 
     // Reload packages from backend to update the UI
     await loadPackagesFromBackend();
 
-    apiSyncStatus.value = `✓ Sync complete! Imported ${imported} new packages, updated ${updated} existing packages.`;
+    apiSyncStatus.value = `Sync complete! Imported ${imported} new packages, updated ${updated} existing packages.`;
     setTimeout(() => { apiSyncStatus.value = ""; }, 5000);
 
   } catch (error) {
     console.error('Sync error:', error);
-    apiSyncStatus.value = `✗ Sync failed: ${error.message}`;
+    apiSyncStatus.value = `Sync failed: ${error.message}`;
     setTimeout(() => { apiSyncStatus.value = ""; }, 5000);
   } finally {
     isSyncing.value = false;
@@ -5321,12 +5424,12 @@ const scanPackage = async () => {
 
     if (data.status === 'not_found') {
       // Not found in any log
-      scanMessage.value = '❌ Tracking number not found in any shipment log';
+      scanMessage.value = 'Tracking number not found in any shipment log';
       scanStatus.value = 'error';
       notFoundCount.value += 1;
     } else if (data.status === 'received') {
       // Found and marked as received
-      scanMessage.value = `✓ Package received: ${data.item.customer_name}`;
+      scanMessage.value = `Package received: ${data.item.customer_name}`;
       scanStatus.value = 'info';
       // Reload items to show updated status
       await loadShipmentItems();
@@ -5373,7 +5476,7 @@ const confirmMovePackage = async () => {
     const data = await response.json();
     if (data.success) {
       shipmentModals.moveConfirm = false;
-      scanMessage.value = `✓ Package moved to current log`;
+      scanMessage.value = `Package moved to current log`;
       scanStatus.value = 'info';
       // Reload items
       await loadShipmentItems();
