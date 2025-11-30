@@ -1396,7 +1396,7 @@
           </div>
         </div>
 
-        <!-- Notification Preferences (Keep existing) -->
+        <!-- Notification Preferences -->
         <div class="card" v-if="activeSettingsTab === 'notifications'">
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
             <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Notification Preferences</h3>
@@ -1425,6 +1425,374 @@
                 <p class="muted">Show desktop alerts for new ready packages.</p>
               </div>
             </label>
+          </div>
+        </div>
+
+        <!-- Toast Notification Settings -->
+        <div class="card" v-if="activeSettingsTab === 'notifications'" style="margin-top: 24px;">
+          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Toast Notification Settings</h3>
+            <p class="muted">Create, edit, and test toast notification templates</p>
+          </div>
+
+          <!-- Toast Notification Form -->
+          <div class="notification-form-section">
+            <!-- Message -->
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label style="font-weight: 600; margin-bottom: 8px; display: block;">Message</label>
+              <textarea
+                v-model="notificationForm.message"
+                placeholder="Enter a message..."
+                rows="3"
+                style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; resize: vertical;"
+              ></textarea>
+            </div>
+
+            <!-- Notification Type -->
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label style="font-weight: 600; margin-bottom: 8px; display: block;">Notification Type</label>
+              <div class="notification-type-options" style="display: flex; gap: 16px; flex-wrap: wrap;">
+                <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.type === 'success' }">
+                  <input type="radio" v-model="notificationForm.type" value="success" />
+                  <span class="radio-indicator success-indicator"></span>
+                  <span>Success</span>
+                </label>
+                <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.type === 'error' }">
+                  <input type="radio" v-model="notificationForm.type" value="error" />
+                  <span class="radio-indicator error-indicator"></span>
+                  <span>Error</span>
+                </label>
+                <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.type === 'info' }">
+                  <input type="radio" v-model="notificationForm.type" value="info" />
+                  <span class="radio-indicator info-indicator"></span>
+                  <span>Info</span>
+                </label>
+                <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.type === 'warning' }">
+                  <input type="radio" v-model="notificationForm.type" value="warning" />
+                  <span class="radio-indicator warning-indicator"></span>
+                  <span>Warning</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Position Type -->
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label style="font-weight: 600; margin-bottom: 8px; display: block;">Position Type</label>
+              <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                <!-- Horizontal Position -->
+                <div>
+                  <span style="font-size: 13px; color: #6b7280; margin-bottom: 6px; display: block;">Horizontal</span>
+                  <div style="display: flex; gap: 12px;">
+                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionH === 'left' }">
+                      <input type="radio" v-model="notificationForm.positionH" value="left" />
+                      <span class="radio-indicator"></span>
+                      <span>Left</span>
+                    </label>
+                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionH === 'center' }">
+                      <input type="radio" v-model="notificationForm.positionH" value="center" />
+                      <span class="radio-indicator"></span>
+                      <span>Center</span>
+                    </label>
+                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionH === 'right' }">
+                      <input type="radio" v-model="notificationForm.positionH" value="right" />
+                      <span class="radio-indicator"></span>
+                      <span>Right</span>
+                    </label>
+                  </div>
+                </div>
+                <!-- Vertical Position -->
+                <div>
+                  <span style="font-size: 13px; color: #6b7280; margin-bottom: 6px; display: block;">Vertical</span>
+                  <div style="display: flex; gap: 12px;">
+                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionV === 'top' }">
+                      <input type="radio" v-model="notificationForm.positionV" value="top" />
+                      <span class="radio-indicator"></span>
+                      <span>Top</span>
+                    </label>
+                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionV === 'bottom' }">
+                      <input type="radio" v-model="notificationForm.positionV" value="bottom" />
+                      <span class="radio-indicator"></span>
+                      <span>Bottom</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Duration -->
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label style="font-weight: 600; margin-bottom: 8px; display: block;">Duration (ms)</label>
+              <input
+                type="number"
+                v-model.number="notificationForm.duration"
+                min="1000"
+                max="30000"
+                step="500"
+                style="width: 150px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;"
+              />
+            </div>
+
+            <!-- Checkboxes Row -->
+            <div class="form-group" style="margin-bottom: 20px; display: flex; gap: 24px; flex-wrap: wrap;">
+              <label class="notification-checkbox-label">
+                <input type="checkbox" v-model="notificationForm.dismissible" />
+                <span class="checkbox-indicator"></span>
+                <span>Dismissible</span>
+              </label>
+              <label class="notification-checkbox-label">
+                <input type="checkbox" v-model="notificationForm.rippleEffect" />
+                <span class="checkbox-indicator"></span>
+                <span>Ripple Effect</span>
+              </label>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <button type="button" class="pill" @click="showTestNotification">
+                Show Notification
+              </button>
+              <button type="button" class="pill danger" @click="clearAllNotifications">
+                Clear Notifications
+              </button>
+              <button type="button" class="pill ghost" @click="saveNotificationTemplate">
+                {{ editingNotificationId ? 'Update Template' : 'Save Template' }}
+              </button>
+              <button v-if="editingNotificationId" type="button" class="pill ghost" @click="resetNotificationForm">
+                Cancel Edit
+              </button>
+            </div>
+          </div>
+
+          <!-- Saved Templates Table -->
+          <div style="margin-top: 32px;" v-if="notificationTemplates.length > 0">
+            <div style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb;">
+              <h4 style="font-size: 16px; font-weight: 600; color: var(--text-main);">Saved Notification Templates</h4>
+              <p class="muted" style="font-size: 13px;">{{ notificationTemplates.length }} template(s) saved</p>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Message</th>
+                    <th>Type</th>
+                    <th>Position</th>
+                    <th>Duration</th>
+                    <th>Options</th>
+                    <th style="text-align: center;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="template in paginatedNotificationTemplates" :key="template.id">
+                    <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                      {{ template.message }}
+                    </td>
+                    <td>
+                      <span class="notification-type-badge" :class="'type-' + template.type">
+                        {{ template.type }}
+                      </span>
+                    </td>
+                    <td>{{ template.positionH }} / {{ template.positionV }}</td>
+                    <td>{{ template.duration }}ms</td>
+                    <td>
+                      <span v-if="template.dismissible" class="option-tag">Dismissible</span>
+                      <span v-if="template.rippleEffect" class="option-tag">Ripple</span>
+                    </td>
+                    <td style="text-align: center;">
+                      <button class="icon-btn" @click="showToast(template.message, template.type, template.duration)" title="Test">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      </button>
+                      <button class="icon-btn" @click="editNotificationTemplate(template)" title="Edit">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button class="icon-btn danger" @click="deleteNotificationTemplate(template.id)" title="Delete">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="notification-pagination" v-if="notificationTemplateTotalPages > 1">
+              <button
+                class="pagination-btn"
+                :disabled="notificationTemplatePage === 1"
+                @click="goToNotificationPage(1)"
+                title="First page"
+              >
+                &laquo;
+              </button>
+              <button
+                class="pagination-btn"
+                :disabled="notificationTemplatePage === 1"
+                @click="goToNotificationPage(notificationTemplatePage - 1)"
+                title="Previous page"
+              >
+                &lsaquo;
+              </button>
+              <button
+                v-for="page in getNotificationPageNumbers"
+                :key="page"
+                class="pagination-btn"
+                :class="{ 'pagination-active': page === notificationTemplatePage }"
+                @click="goToNotificationPage(page)"
+              >
+                {{ page }}
+              </button>
+              <button
+                class="pagination-btn"
+                :disabled="notificationTemplatePage === notificationTemplateTotalPages"
+                @click="goToNotificationPage(notificationTemplatePage + 1)"
+                title="Next page"
+              >
+                &rsaquo;
+              </button>
+              <button
+                class="pagination-btn"
+                :disabled="notificationTemplatePage === notificationTemplateTotalPages"
+                @click="goToNotificationPage(notificationTemplateTotalPages)"
+                title="Last page"
+              >
+                &raquo;
+              </button>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div v-else style="margin-top: 32px; text-align: center; padding: 40px 20px; background: #f9fafb; border-radius: 12px;">
+            <svg width="48" height="48" fill="none" stroke="#9ca3af" stroke-width="1.5" viewBox="0 0 24 24" style="margin: 0 auto 16px;">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <p style="color: #6b7280; font-size: 14px;">No notification templates saved yet</p>
+            <p style="color: #9ca3af; font-size: 13px;">Create a notification above and click "Save Template" to add it here</p>
+          </div>
+
+          <!-- Implemented Notifications Reference Table -->
+          <div style="margin-top: 32px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h4 style="font-size: 16px; font-weight: 600; color: var(--text-main);">Implemented Dashboard Notifications</h4>
+                <p class="muted" style="font-size: 13px;">{{ filteredImplementedNotifications.length }} notification(s) in the system</p>
+              </div>
+              <button type="button" class="pill small" @click="openAddImplementedNotification">
+                + Add Notification
+              </button>
+            </div>
+
+            <!-- Search and Filter -->
+            <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+              <div class="search-box compact">
+                <div class="input-shell with-clear">
+                  <input
+                    type="text"
+                    v-model="implementedNotificationSearch"
+                    placeholder="Search notifications..."
+                  />
+                  <button
+                    v-if="implementedNotificationSearch"
+                    type="button"
+                    class="clear-search-btn"
+                    @click="implementedNotificationSearch = ''"
+                  >
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              </div>
+              <select v-model="implementedNotificationCategoryFilter" style="width: 180px;">
+                <option v-for="cat in implementedNotificationCategories" :key="cat" :value="cat">
+                  {{ cat === 'all' ? 'All Categories' : cat }}
+                </option>
+              </select>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Action/Event</th>
+                    <th>Message</th>
+                    <th>Type</th>
+                    <th>Category</th>
+                    <th style="text-align: center;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="notification in paginatedImplementedNotifications" :key="notification.id">
+                    <td><strong>{{ notification.action }}</strong></td>
+                    <td style="max-width: 300px;">{{ notification.message }}</td>
+                    <td>
+                      <span class="notification-type-badge" :class="'type-' + notification.type">
+                        {{ notification.type }}
+                      </span>
+                    </td>
+                    <td><span class="option-tag">{{ notification.category }}</span></td>
+                    <td style="text-align: center;">
+                      <button class="icon-btn" @click="showToast(notification.message, notification.type)" title="Test">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      </button>
+                      <button class="icon-btn" @click="openEditImplementedNotification(notification)" title="Edit">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button class="icon-btn danger" @click="openDeleteImplementedNotification(notification.id)" title="Delete">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="paginatedImplementedNotifications.length === 0">
+                    <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                      No notifications found
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="notification-pagination" v-if="implementedNotificationTotalPages > 1">
+              <button
+                class="pagination-btn"
+                :disabled="implementedNotificationPage === 1"
+                @click="goToImplementedNotificationPage(1)"
+                title="First page"
+              >
+                &laquo;
+              </button>
+              <button
+                class="pagination-btn"
+                :disabled="implementedNotificationPage === 1"
+                @click="goToImplementedNotificationPage(implementedNotificationPage - 1)"
+                title="Previous page"
+              >
+                &lsaquo;
+              </button>
+              <button
+                v-for="page in getImplementedNotificationPageNumbers"
+                :key="page"
+                class="pagination-btn"
+                :class="{ 'pagination-active': page === implementedNotificationPage }"
+                @click="goToImplementedNotificationPage(page)"
+              >
+                {{ page }}
+              </button>
+              <button
+                class="pagination-btn"
+                :disabled="implementedNotificationPage === implementedNotificationTotalPages"
+                @click="goToImplementedNotificationPage(implementedNotificationPage + 1)"
+                title="Next page"
+              >
+                &rsaquo;
+              </button>
+              <button
+                class="pagination-btn"
+                :disabled="implementedNotificationPage === implementedNotificationTotalPages"
+                @click="goToImplementedNotificationPage(implementedNotificationTotalPages)"
+                title="Last page"
+              >
+                &raquo;
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -3359,6 +3727,101 @@
       </div>
   </div>
 
+  <!-- Add Implemented Notification Modal -->
+  <div v-if="implementedNotificationModal.add" class="modal" @click.self="implementedNotificationModal.add = false">
+    <div class="modal-card">
+      <header>
+        <h3>Add New Notification</h3>
+        <button type="button" class="pill ghost small" @click="implementedNotificationModal.add = false">Close</button>
+      </header>
+      <form @submit.prevent="saveImplementedNotification">
+        <label>
+          <span class="input-label">Action/Event *</span>
+          <input type="text" v-model="implementedNotificationForm.action" placeholder="e.g., Package Added" required />
+        </label>
+        <label>
+          <span class="input-label">Message *</span>
+          <textarea v-model="implementedNotificationForm.message" placeholder="e.g., Package added successfully" rows="3" required></textarea>
+        </label>
+        <div class="form-grid">
+          <label>
+            <span class="input-label">Type</span>
+            <select v-model="implementedNotificationForm.type">
+              <option value="success">Success</option>
+              <option value="error">Error</option>
+              <option value="warning">Warning</option>
+              <option value="info">Info</option>
+            </select>
+          </label>
+          <label>
+            <span class="input-label">Category</span>
+            <input type="text" v-model="implementedNotificationForm.category" placeholder="e.g., Packages" />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="pill ghost" @click="implementedNotificationModal.add = false">Cancel</button>
+          <button type="submit" class="pill">Add Notification</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Implemented Notification Modal -->
+  <div v-if="implementedNotificationModal.edit" class="modal" @click.self="implementedNotificationModal.edit = false">
+    <div class="modal-card">
+      <header>
+        <h3>Edit Notification</h3>
+        <button type="button" class="pill ghost small" @click="implementedNotificationModal.edit = false">Close</button>
+      </header>
+      <form @submit.prevent="updateImplementedNotification">
+        <label>
+          <span class="input-label">Action/Event *</span>
+          <input type="text" v-model="implementedNotificationForm.action" placeholder="e.g., Package Added" required />
+        </label>
+        <label>
+          <span class="input-label">Message *</span>
+          <textarea v-model="implementedNotificationForm.message" placeholder="e.g., Package added successfully" rows="3" required></textarea>
+        </label>
+        <div class="form-grid">
+          <label>
+            <span class="input-label">Type</span>
+            <select v-model="implementedNotificationForm.type">
+              <option value="success">Success</option>
+              <option value="error">Error</option>
+              <option value="warning">Warning</option>
+              <option value="info">Info</option>
+            </select>
+          </label>
+          <label>
+            <span class="input-label">Category</span>
+            <input type="text" v-model="implementedNotificationForm.category" placeholder="e.g., Packages" />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="pill ghost" @click="implementedNotificationModal.edit = false">Cancel</button>
+          <button type="submit" class="pill">Update Notification</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Implemented Notification Modal -->
+  <div v-if="implementedNotificationModal.delete" class="modal" @click.self="implementedNotificationModal.delete = false">
+    <div class="modal-card" style="max-width: 450px;">
+      <header>
+        <h3>Delete Notification</h3>
+        <button type="button" class="pill ghost small" @click="implementedNotificationModal.delete = false">Close</button>
+      </header>
+      <p style="margin-bottom: 20px; color: var(--text-secondary);">
+        Are you sure you want to delete this notification? This action cannot be undone.
+      </p>
+      <div class="modal-actions">
+        <button type="button" class="pill ghost" @click="implementedNotificationModal.delete = false">Cancel</button>
+        <button type="button" class="pill danger" @click="deleteImplementedNotification">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notifications Container -->
   <div class="toast-container">
     <transition-group name="toast">
@@ -3779,6 +4242,339 @@ const passwordSuccess = ref(false);
 const photoInput = ref(null);
 const placeholderPhoto = "https://via.placeholder.com/120x120.png?text=Photo";
 const settings = reactive({ notifyEmail: true, notifySms: false, notifyDesktop: true });
+
+// Toast Notification Settings
+const notificationForm = reactive({
+  message: '',
+  type: 'success',
+  positionH: 'right',
+  positionV: 'top',
+  duration: 3000,
+  dismissible: false,
+  rippleEffect: true
+});
+const notificationTemplates = ref([]);
+const notificationTemplatePage = ref(1);
+const notificationTemplatesPerPage = 5;
+const editingNotificationId = ref(null);
+
+const notificationTemplateTotalPages = computed(() => {
+  return Math.ceil(notificationTemplates.value.length / notificationTemplatesPerPage);
+});
+
+const paginatedNotificationTemplates = computed(() => {
+  const start = (notificationTemplatePage.value - 1) * notificationTemplatesPerPage;
+  return notificationTemplates.value.slice(start, start + notificationTemplatesPerPage);
+});
+
+const showTestNotification = () => {
+  if (!notificationForm.message.trim()) {
+    showToast('Please enter a message', 'warning');
+    return;
+  }
+  showToast(notificationForm.message, notificationForm.type, notificationForm.duration);
+};
+
+const clearAllNotifications = () => {
+  toasts.value = [];
+};
+
+const saveNotificationTemplate = () => {
+  if (!notificationForm.message.trim()) {
+    showToast('Please enter a message', 'warning');
+    return;
+  }
+
+  const template = {
+    id: editingNotificationId.value || Date.now(),
+    message: notificationForm.message,
+    type: notificationForm.type,
+    positionH: notificationForm.positionH,
+    positionV: notificationForm.positionV,
+    duration: notificationForm.duration,
+    dismissible: notificationForm.dismissible,
+    rippleEffect: notificationForm.rippleEffect,
+    createdAt: new Date().toISOString()
+  };
+
+  if (editingNotificationId.value) {
+    const index = notificationTemplates.value.findIndex(t => t.id === editingNotificationId.value);
+    if (index > -1) {
+      notificationTemplates.value[index] = template;
+      showToast('Notification template updated', 'success');
+    }
+    editingNotificationId.value = null;
+  } else {
+    notificationTemplates.value.push(template);
+    showToast('Notification template saved', 'success');
+  }
+
+  resetNotificationForm();
+};
+
+const editNotificationTemplate = (template) => {
+  editingNotificationId.value = template.id;
+  notificationForm.message = template.message;
+  notificationForm.type = template.type;
+  notificationForm.positionH = template.positionH;
+  notificationForm.positionV = template.positionV;
+  notificationForm.duration = template.duration;
+  notificationForm.dismissible = template.dismissible;
+  notificationForm.rippleEffect = template.rippleEffect;
+};
+
+const deleteNotificationTemplate = (id) => {
+  const index = notificationTemplates.value.findIndex(t => t.id === id);
+  if (index > -1) {
+    notificationTemplates.value.splice(index, 1);
+    showToast('Notification template deleted', 'success');
+    // Adjust page if needed
+    if (notificationTemplatePage.value > notificationTemplateTotalPages.value && notificationTemplatePage.value > 1) {
+      notificationTemplatePage.value--;
+    }
+  }
+};
+
+const resetNotificationForm = () => {
+  notificationForm.message = '';
+  notificationForm.type = 'success';
+  notificationForm.positionH = 'right';
+  notificationForm.positionV = 'top';
+  notificationForm.duration = 3000;
+  notificationForm.dismissible = false;
+  notificationForm.rippleEffect = true;
+  editingNotificationId.value = null;
+};
+
+const goToNotificationPage = (page) => {
+  if (page >= 1 && page <= notificationTemplateTotalPages.value) {
+    notificationTemplatePage.value = page;
+  }
+};
+
+const getNotificationPageNumbers = computed(() => {
+  const total = notificationTemplateTotalPages.value;
+  const current = notificationTemplatePage.value;
+  const pages = [];
+
+  if (total <= 5) {
+    for (let i = 1; i <= total; i++) pages.push(i);
+  } else {
+    if (current <= 3) {
+      pages.push(1, 2, 3, 4, 5);
+    } else if (current >= total - 2) {
+      pages.push(total - 4, total - 3, total - 2, total - 1, total);
+    } else {
+      pages.push(current - 2, current - 1, current, current + 1, current + 2);
+    }
+  }
+
+  return pages;
+});
+
+// Implemented Dashboard Notifications
+const implementedNotifications = ref([
+  { id: 1, action: 'Sign In', message: 'Welcome back, {username}!', type: 'success', category: 'Authentication' },
+  { id: 2, action: 'Sign Out', message: 'You have been signed out', type: 'info', category: 'Authentication' },
+  { id: 3, action: 'Account Deactivated', message: 'Your account has been deactivated. You will be signed out.', type: 'warning', category: 'Authentication' },
+  { id: 4, action: 'Package Updated', message: 'Package updated successfully', type: 'success', category: 'Packages' },
+  { id: 5, action: 'Package Deleted', message: 'Package deleted successfully', type: 'success', category: 'Packages' },
+  { id: 6, action: 'Package Added', message: 'Package added successfully', type: 'success', category: 'Packages' },
+  { id: 7, action: 'Packages Collected', message: '{count} package(s) marked as collected', type: 'success', category: 'Packages' },
+  { id: 8, action: 'Billing Status Updated', message: 'Billing status updated to {status}', type: 'success', category: 'Billing' },
+  { id: 9, action: 'Package Billed', message: 'Package billed successfully', type: 'success', category: 'Billing' },
+  { id: 10, action: 'Payment Collected', message: 'Payment collected successfully', type: 'success', category: 'Billing' },
+  { id: 11, action: 'Billing Details Updated', message: 'Billing details updated successfully', type: 'success', category: 'Billing' },
+  { id: 12, action: 'Billing Record Deleted', message: 'Billing record deleted successfully', type: 'success', category: 'Billing' },
+  { id: 13, action: 'Order Created', message: 'Order created successfully', type: 'success', category: 'Orders' },
+  { id: 14, action: 'Order Updated', message: 'Order updated successfully', type: 'success', category: 'Orders' },
+  { id: 15, action: 'Order Received', message: 'Order marked as received', type: 'success', category: 'Orders' },
+  { id: 16, action: 'Order Deleted', message: 'Order deleted successfully', type: 'success', category: 'Orders' },
+  { id: 17, action: 'Order Created Locally', message: 'Order created locally', type: 'warning', category: 'Orders' },
+  { id: 18, action: 'Shipment Upload', message: 'Successfully uploaded {count} packages', type: 'success', category: 'Shipment' },
+  { id: 19, action: 'Package Scanned', message: 'Package received: {customer_name}', type: 'success', category: 'Shipment' },
+  { id: 20, action: 'Tracking Not Found', message: 'Tracking number not found in any shipment log', type: 'warning', category: 'Shipment' },
+  { id: 21, action: 'Package Moved', message: 'Package moved successfully', type: 'success', category: 'Shipment' },
+  { id: 22, action: 'Shipment Log Updated', message: 'Shipment log updated successfully', type: 'success', category: 'Shipment' },
+  { id: 23, action: 'Shipment Log Deleted', message: 'Shipment log deleted successfully', type: 'success', category: 'Shipment' },
+  { id: 24, action: 'Status Updated', message: 'Status updated successfully', type: 'success', category: 'Shipment' },
+  { id: 25, action: 'User Created', message: 'User "{name}" created successfully', type: 'success', category: 'Users' },
+  { id: 26, action: 'User Updated', message: 'User "{name}" updated successfully', type: 'success', category: 'Users' },
+  { id: 27, action: 'User Deleted', message: 'User "{name}" deleted successfully', type: 'success', category: 'Users' },
+  { id: 28, action: 'User Activated', message: 'User activated successfully', type: 'success', category: 'Users' },
+  { id: 29, action: 'User Deactivated', message: 'User deactivated successfully', type: 'success', category: 'Users' },
+  { id: 30, action: 'Password Reset', message: 'Password reset successfully', type: 'success', category: 'Users' },
+  { id: 31, action: 'Profile Updated', message: 'Profile updated successfully', type: 'success', category: 'Profile' },
+  { id: 32, action: 'Password Changed', message: 'Password changed successfully', type: 'success', category: 'Profile' },
+  { id: 33, action: 'Photo Size Error', message: 'Photo must be less than 5MB', type: 'error', category: 'Profile' },
+  { id: 34, action: 'Photo Type Error', message: 'Please select an image file', type: 'error', category: 'Profile' },
+  { id: 35, action: 'Role Permissions Updated', message: 'Role permissions updated successfully! {count} user(s) updated.', type: 'success', category: 'Roles' },
+  { id: 36, action: 'Role Created', message: 'Role created successfully', type: 'success', category: 'Roles' },
+  { id: 37, action: 'Role Updated', message: 'Role updated successfully', type: 'success', category: 'Roles' },
+  { id: 38, action: 'Role Deleted', message: 'Role deleted successfully', type: 'success', category: 'Roles' },
+  { id: 39, action: 'Role Duplicated', message: 'Role duplicated successfully', type: 'success', category: 'Roles' },
+  { id: 40, action: 'Role Duplication Info', message: 'Duplicating {role} role settings. Modify permissions as needed.', type: 'info', category: 'Roles' },
+  { id: 41, action: 'Permissions Saved', message: 'Permissions saved successfully', type: 'success', category: 'Roles' },
+  { id: 42, action: 'API Sync Complete', message: 'Sync complete! Imported {count} new, updated {count} packages', type: 'success', category: 'API' },
+  { id: 43, action: 'API Sync Failed', message: 'Sync failed: {error}', type: 'error', category: 'API' },
+  { id: 44, action: 'API Config Saved', message: 'API configuration saved successfully', type: 'success', category: 'API' },
+  { id: 45, action: 'Sync Completed', message: 'Sync completed: {created} created, {updated} updated', type: 'success', category: 'API' },
+  { id: 46, action: 'Maintenance Mode Toggle', message: 'Maintenance mode {enabled/disabled}', type: 'success', category: 'API' },
+  { id: 47, action: 'Operation Failed', message: 'Failed to {operation}', type: 'error', category: 'Error' },
+  { id: 48, action: 'Scan Failed', message: 'Scan failed', type: 'error', category: 'Error' },
+  { id: 49, action: 'Shipment Log Required', message: 'Please select a shipment log first', type: 'warning', category: 'Validation' }
+]);
+
+const implementedNotificationPage = ref(1);
+const implementedNotificationsPerPage = 10;
+const implementedNotificationModal = reactive({ add: false, edit: false, delete: false });
+const implementedNotificationForm = reactive({
+  id: null,
+  action: '',
+  message: '',
+  type: 'success',
+  category: 'General'
+});
+const implementedNotificationDeleteId = ref(null);
+const implementedNotificationSearch = ref('');
+const implementedNotificationCategoryFilter = ref('all');
+
+const implementedNotificationCategories = computed(() => {
+  const cats = new Set(implementedNotifications.value.map(n => n.category));
+  return ['all', ...Array.from(cats).sort()];
+});
+
+const filteredImplementedNotifications = computed(() => {
+  let filtered = implementedNotifications.value;
+
+  if (implementedNotificationCategoryFilter.value !== 'all') {
+    filtered = filtered.filter(n => n.category === implementedNotificationCategoryFilter.value);
+  }
+
+  if (implementedNotificationSearch.value.trim()) {
+    const search = implementedNotificationSearch.value.toLowerCase();
+    filtered = filtered.filter(n =>
+      n.action.toLowerCase().includes(search) ||
+      n.message.toLowerCase().includes(search) ||
+      n.category.toLowerCase().includes(search)
+    );
+  }
+
+  return filtered;
+});
+
+const implementedNotificationTotalPages = computed(() => {
+  return Math.ceil(filteredImplementedNotifications.value.length / implementedNotificationsPerPage);
+});
+
+const paginatedImplementedNotifications = computed(() => {
+  const start = (implementedNotificationPage.value - 1) * implementedNotificationsPerPage;
+  return filteredImplementedNotifications.value.slice(start, start + implementedNotificationsPerPage);
+});
+
+const getImplementedNotificationPageNumbers = computed(() => {
+  const total = implementedNotificationTotalPages.value;
+  const current = implementedNotificationPage.value;
+  const pages = [];
+
+  if (total <= 5) {
+    for (let i = 1; i <= total; i++) pages.push(i);
+  } else {
+    if (current <= 3) {
+      pages.push(1, 2, 3, 4, 5);
+    } else if (current >= total - 2) {
+      pages.push(total - 4, total - 3, total - 2, total - 1, total);
+    } else {
+      pages.push(current - 2, current - 1, current, current + 1, current + 2);
+    }
+  }
+
+  return pages;
+});
+
+const openAddImplementedNotification = () => {
+  implementedNotificationForm.id = null;
+  implementedNotificationForm.action = '';
+  implementedNotificationForm.message = '';
+  implementedNotificationForm.type = 'success';
+  implementedNotificationForm.category = 'General';
+  implementedNotificationModal.add = true;
+};
+
+const openEditImplementedNotification = (notification) => {
+  implementedNotificationForm.id = notification.id;
+  implementedNotificationForm.action = notification.action;
+  implementedNotificationForm.message = notification.message;
+  implementedNotificationForm.type = notification.type;
+  implementedNotificationForm.category = notification.category;
+  implementedNotificationModal.edit = true;
+};
+
+const openDeleteImplementedNotification = (id) => {
+  implementedNotificationDeleteId.value = id;
+  implementedNotificationModal.delete = true;
+};
+
+const saveImplementedNotification = () => {
+  if (!implementedNotificationForm.action.trim() || !implementedNotificationForm.message.trim()) {
+    showToast('Please fill in all required fields', 'warning');
+    return;
+  }
+
+  const newId = Math.max(...implementedNotifications.value.map(n => n.id), 0) + 1;
+  implementedNotifications.value.push({
+    id: newId,
+    action: implementedNotificationForm.action,
+    message: implementedNotificationForm.message,
+    type: implementedNotificationForm.type,
+    category: implementedNotificationForm.category
+  });
+
+  implementedNotificationModal.add = false;
+  showToast('Notification added successfully', 'success');
+};
+
+const updateImplementedNotification = () => {
+  if (!implementedNotificationForm.action.trim() || !implementedNotificationForm.message.trim()) {
+    showToast('Please fill in all required fields', 'warning');
+    return;
+  }
+
+  const index = implementedNotifications.value.findIndex(n => n.id === implementedNotificationForm.id);
+  if (index > -1) {
+    implementedNotifications.value[index] = {
+      id: implementedNotificationForm.id,
+      action: implementedNotificationForm.action,
+      message: implementedNotificationForm.message,
+      type: implementedNotificationForm.type,
+      category: implementedNotificationForm.category
+    };
+  }
+
+  implementedNotificationModal.edit = false;
+  showToast('Notification updated successfully', 'success');
+};
+
+const deleteImplementedNotification = () => {
+  const index = implementedNotifications.value.findIndex(n => n.id === implementedNotificationDeleteId.value);
+  if (index > -1) {
+    implementedNotifications.value.splice(index, 1);
+    showToast('Notification deleted successfully', 'success');
+
+    // Adjust page if needed
+    if (implementedNotificationPage.value > implementedNotificationTotalPages.value && implementedNotificationPage.value > 1) {
+      implementedNotificationPage.value--;
+    }
+  }
+  implementedNotificationModal.delete = false;
+};
+
+const goToImplementedNotificationPage = (page) => {
+  if (page >= 1 && page <= implementedNotificationTotalPages.value) {
+    implementedNotificationPage.value = page;
+  }
+};
+
 const activeSettingsTab = ref('roles');
 const activeDailyMethod = ref(null); // null means show all, or 'cash', 'pos', 'transfer', 'loyalty', 'creditCardJmd', 'creditCardUsd'
 const dailySummaryDateFilter = ref('');

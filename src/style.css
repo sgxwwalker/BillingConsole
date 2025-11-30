@@ -1721,3 +1721,234 @@ label.full-width {
     transform: translateX(100%);
   }
 }
+
+/* Toast Notification Settings Styles */
+.notification-form-section {
+  padding: 20px;
+  background: #fafbfc;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.notification-radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+
+.notification-radio-label:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.notification-radio-label.radio-selected {
+  border-color: var(--sgx-light);
+  background: rgba(0, 174, 239, 0.05);
+}
+
+.notification-radio-label input[type="radio"] {
+  display: none;
+}
+
+.radio-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #d1d5db;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.radio-selected .radio-indicator {
+  border-color: var(--sgx-light);
+}
+
+.radio-selected .radio-indicator::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sgx-light);
+}
+
+.radio-indicator.success-indicator { border-color: #22c55e; }
+.radio-selected .radio-indicator.success-indicator { border-color: #22c55e; }
+.radio-selected .radio-indicator.success-indicator::after { background: #22c55e; }
+
+.radio-indicator.error-indicator { border-color: #ef4444; }
+.radio-selected .radio-indicator.error-indicator { border-color: #ef4444; }
+.radio-selected .radio-indicator.error-indicator::after { background: #ef4444; }
+
+.radio-indicator.info-indicator { border-color: #3b82f6; }
+.radio-selected .radio-indicator.info-indicator { border-color: #3b82f6; }
+.radio-selected .radio-indicator.info-indicator::after { background: #3b82f6; }
+
+.radio-indicator.warning-indicator { border-color: #f59e0b; }
+.radio-selected .radio-indicator.warning-indicator { border-color: #f59e0b; }
+.radio-selected .radio-indicator.warning-indicator::after { background: #f59e0b; }
+
+.notification-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.notification-checkbox-label input[type="checkbox"] {
+  display: none;
+}
+
+.checkbox-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 2px solid #d1d5db;
+  background: #fff;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.notification-checkbox-label input:checked + .checkbox-indicator {
+  background: var(--sgx-light);
+  border-color: var(--sgx-light);
+}
+
+.notification-checkbox-label input:checked + .checkbox-indicator::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  width: 5px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Notification Type Badges */
+.notification-type-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.notification-type-badge.type-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.notification-type-badge.type-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.notification-type-badge.type-info {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.notification-type-badge.type-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* Option Tags */
+.option-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #f1f5f9;
+  color: #475569;
+  margin-right: 4px;
+}
+
+/* Icon Buttons */
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: #f1f5f9;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 2px;
+  transition: all 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.icon-btn.danger:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Notification Pagination */
+.notification-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.pagination-btn {
+  min-width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-btn.pagination-active {
+  background: var(--sgx-light);
+  border-color: var(--sgx-light);
+  color: #fff;
+}
+
+.pagination-btn.pagination-active:hover {
+  background: var(--sgx-blue);
+  border-color: var(--sgx-blue);
+}
