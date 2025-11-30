@@ -89,9 +89,6 @@
             <p class="eyebrow">SG Xpress Shipping</p>
             <h1>SGX Billing Console</h1>
           </div>
-          <div class="top-actions">
-            <button class="pill ghost" type="button" @click="loadBillingItems">Refresh</button>
-          </div>
         </header>
 
         <!-- Billing Stats -->
@@ -118,7 +115,7 @@
         <div class="search-header no-title">
           <div class="search-box" style="min-width: 400px;">
             <label class="input-label" for="billingSearch">Search by Customer Name, Package ID, or Tracking Number</label>
-            <div class="input-shell">
+            <div class="input-shell with-clear">
               <input
                 id="billingSearch"
                 type="text"
@@ -126,6 +123,18 @@
                 autocomplete="off"
                 v-model="billingSearchQuery"
               />
+              <button
+                v-if="billingSearchQuery"
+                type="button"
+                class="clear-search-btn"
+                @click="billingSearchQuery = ''"
+                title="Clear search"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
             </div>
           </div>
           <div class="action-group">
@@ -148,21 +157,22 @@
                 <th>Tracking</th>
                 <th>Customer</th>
                 <th>Alt Name</th>
-                <th>SL Status</th>
                 <th>Cost</th>
+                <th>SL Status</th>
                 <th>BL Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="filteredBillingItems.length === 0" class="empty">
-                <td colspan="8">No packages found. Upload shipment logs in the Shipment Bin to see packages here.</td>
+                <td colspan="8">{{ billingSearchQuery.trim() ? 'No packages found matching your search.' : 'Search for a customer name, package ID, or tracking number to view packages.' }}</td>
               </tr>
               <tr v-for="item in paginatedBillingItems" :key="item.id">
                 <td><strong>{{ item.package_id || item.id }}</strong></td>
                 <td>{{ item.tracking_number }}</td>
                 <td>{{ item.customer_name }}</td>
                 <td>{{ item.alt_name || '—' }}</td>
+                <td>{{ formatCurrency(calculateItemCost(item)) }}</td>
                 <td>
                   <span class="tag" :class="{
                     'success': item.status === 'received',
@@ -172,7 +182,6 @@
                     {{ item.status === 'received' ? 'Received' : item.status === 'pending' ? 'Pending' : item.status === 'not_found' ? 'Not Found' : item.status }}
                   </span>
                 </td>
-                <td>{{ formatCurrency(calculateItemCost(item)) }}</td>
                 <td>
                   <div class="bl-status-dropdown" @click.stop>
                     <button
@@ -180,7 +189,7 @@
                       :class="getBLStatusClass(item.billing_status)"
                       @click="toggleBLStatusDropdown(item.id)"
                     >
-                      {{ item.billing_status || 'unbilled' }}
+                      {{ item.billing_status === 'unbilled' || !item.billing_status ? 'Unbilled' : item.billing_status }}
                       <span class="chevron">▼</span>
                     </button>
                     <div v-if="openBLStatusDropdownId === item.id" class="bl-status-menu">
@@ -197,17 +206,17 @@
                       class="pill small"
                       type="button"
                       @click="openBillModal(item)"
-                      :disabled="item.billing_status !== 'unbilled'"
+                      :disabled="item.billing_status !== 'unbilled' && item.billing_status"
                     >Bill</button>
                     <button
                       class="pill small secondary"
                       type="button"
                       @click="openCollectModal(item)"
-                      :disabled="item.billing_status === 'unbilled' || item.billing_status === 'Closed'"
+                      :disabled="!item.billing_status || item.billing_status === 'unbilled' || item.billing_status === 'Closed'"
                     >Collect</button>
                     <div class="kebab-menu-container">
                       <button class="kebab-btn" @click="toggleBillingKebab(item.id)" type="button" aria-label="More actions">
-                        ⋮
+                        <span class="kebab-dots"><span></span></span>
                       </button>
                       <div v-if="openBillingKebabId === item.id" class="kebab-dropdown">
                         <button @click="openBillingViewModal(item); closeBillingKebab()">View</button>
@@ -1909,38 +1918,47 @@
 
     <!-- Bill Modal -->
     <div class="modal" v-if="billingModals.bill">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Billing</p>
             <h3>Bill Package</h3>
+            <p class="modal-subtitle">{{ billForm.packageId }} • {{ billForm.customerName }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="billingModals.bill = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="billingModals.bill = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmBill">
-          <div class="billing-info-row">
-            <div><strong>Package ID:</strong> {{ billForm.packageId }}</div>
-            <div><strong>Customer:</strong> {{ billForm.customerName }}</div>
-            <div><strong>Tracking:</strong> {{ billForm.trackingNumber }}</div>
+          <div class="billing-fields">
+            <div class="field-group">
+              <label class="field-label">Package Cost</label>
+              <div class="input-with-prefix">
+                <span class="prefix">$</span>
+                <input v-model.number="billForm.packageCost" type="number" min="0" step="0.01" placeholder="0.00" required />
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Import Fee</label>
+              <div class="input-with-prefix">
+                <span class="prefix">$</span>
+                <input v-model.number="billForm.customFee" type="number" min="0" step="0.01" placeholder="0.00" />
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Processing Fee</label>
+              <div class="input-with-prefix">
+                <span class="prefix">$</span>
+                <input v-model.number="billForm.processingFee" type="number" min="0" step="0.01" placeholder="0.00" />
+              </div>
+            </div>
           </div>
-          <div class="form-grid">
-            <label>
-              <span class="input-label">Package Cost ($)</span>
-              <input v-model.number="billForm.packageCost" type="number" min="0" step="0.01" placeholder="0.00" required />
-            </label>
-            <label>
-              <span class="input-label">Import Fee ($)</span>
-              <input v-model.number="billForm.customFee" type="number" min="0" step="0.01" placeholder="0.00" />
-            </label>
-            <label>
-              <span class="input-label">Processing Fee ($)</span>
-              <input v-model.number="billForm.processingFee" type="number" min="0" step="0.01" placeholder="0.00" />
-            </label>
+          <div class="billing-summary">
+            <span class="summary-label">Total Cost</span>
+            <span class="summary-value">{{ formatCurrency((billForm.packageCost || 0) + (billForm.customFee || 0) + (billForm.processingFee || 0)) }}</span>
           </div>
-          <div class="billing-total">
-            <strong>Total Cost:</strong> {{ formatCurrency((billForm.packageCost || 0) + (billForm.customFee || 0) + (billForm.processingFee || 0)) }}
-          </div>
-          <div class="modal-actions">
+          <div class="modal-footer">
             <button class="pill ghost" type="button" @click="billingModals.bill = false">Cancel</button>
             <button class="pill" type="submit">Confirm Bill</button>
           </div>
@@ -1950,51 +1968,53 @@
 
     <!-- Collect Modal -->
     <div class="modal" v-if="billingModals.collect">
-      <div class="modal-card">
+      <div class="modal-card billing-modal collect-modal">
         <header>
           <div>
-            <p class="eyebrow">Collection</p>
             <h3>Collect Payment</h3>
+            <p class="modal-subtitle">{{ collectForm.packageId }} • {{ collectForm.customerName }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="billingModals.collect = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="billingModals.collect = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmCollect">
-          <div class="billing-info-row">
-            <div><strong>Package ID:</strong> {{ collectForm.packageId }}</div>
-            <div><strong>Customer:</strong> {{ collectForm.customerName }}</div>
+          <div class="collect-summary">
+            <div class="collect-row"><span>Total Due</span><span class="total-value">{{ formatCurrency(collectForm.totalDue) }}</span></div>
+            <div class="collect-row"><span>Late Fee ({{ collectForm.lateDays }} days)</span><span>{{ formatCurrency(collectForm.lateFee || 0) }}</span></div>
+            <div class="collect-row"><span>Previously Paid</span><span>{{ formatCurrency(collectForm.amountPreviouslyPaid || 0) }}</span></div>
+            <div class="collect-row balance-row"><span>Balance</span><span>{{ formatCurrency(collectForm.balance) }}</span></div>
           </div>
-          <div class="billing-cost-breakdown">
-            <div class="cost-line"><span>Package Cost:</span> <span>{{ formatCurrency(collectForm.packageCost || 0) }}</span></div>
-            <div class="cost-line"><span>Import Fee:</span> <span>{{ formatCurrency(collectForm.customFee || 0) }}</span></div>
-            <div class="cost-line"><span>Processing Fee:</span> <span>{{ formatCurrency(collectForm.processingFee || 0) }}</span></div>
-            <div class="cost-line late-fee"><span>Late Fee ({{ collectForm.lateDays }} days):</span> <span>{{ formatCurrency(collectForm.lateFee || 0) }}</span></div>
-            <div class="cost-line total"><span>Total Due:</span> <span>{{ formatCurrency(collectForm.totalDue) }}</span></div>
-            <div class="cost-line paid"><span>Previously Paid:</span> <span>{{ formatCurrency(collectForm.amountPreviouslyPaid || 0) }}</span></div>
-            <div class="cost-line balance"><span>Balance:</span> <span>{{ formatCurrency(collectForm.balance) }}</span></div>
+          <div class="collect-fields">
+            <div class="collect-field-row">
+              <div class="field-group">
+                <label class="field-label">Payment Type</label>
+                <select v-model="collectForm.paymentMethod" required class="modern-select">
+                  <option value="">Select type</option>
+                  <option value="Cash">Cash</option>
+                  <option value="POS">POS</option>
+                  <option value="Transfer">Transfer</option>
+                  <option value="Loyalty">Loyalty</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Amount</label>
+                <div class="input-with-prefix">
+                  <span class="prefix">$</span>
+                  <input v-model.number="collectForm.amountPaid" type="number" min="0" step="0.01" :max="collectForm.balance" placeholder="0.00" required />
+                </div>
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Notes (optional)</label>
+              <input v-model="collectForm.notes" type="text" placeholder="Payment notes..." class="modern-input" />
+            </div>
           </div>
-          <div class="form-grid">
-            <label>
-              <span class="input-label">Payment Type</span>
-              <select v-model="collectForm.paymentMethod" required>
-                <option value="">Select payment type</option>
-                <option value="Cash">Cash</option>
-                <option value="POS">POS</option>
-                <option value="Transfer">Transfer</option>
-                <option value="Loyalty">Loyalty</option>
-              </select>
-            </label>
-            <label>
-              <span class="input-label">Amount Paid ($)</span>
-              <input v-model.number="collectForm.amountPaid" type="number" min="0" step="0.01" :max="collectForm.balance" placeholder="0.00" required />
-            </label>
-          </div>
-          <label>
-            <span class="input-label">Notes (optional)</span>
-            <textarea v-model="collectForm.notes" rows="2" placeholder="Payment notes..."></textarea>
-          </label>
-          <div class="modal-actions">
+          <div class="modal-footer">
             <button class="pill ghost" type="button" @click="billingModals.collect = false">Cancel</button>
-            <button class="pill secondary" type="submit">Collect Payment</button>
+            <button class="pill" type="submit">Collect Payment</button>
           </div>
         </form>
       </div>
@@ -2002,156 +2022,166 @@
 
     <!-- Billing View Modal -->
     <div class="modal" v-if="billingModals.view">
-      <div class="modal-card large">
+      <div class="modal-card billing-modal" style="max-width: 520px;">
         <header>
           <div>
-            <p class="eyebrow">Package Details</p>
-            <h3>{{ billingViewItem?.package_id || billingViewItem?.id }}</h3>
+            <h3>Package Details</h3>
+            <p class="modal-subtitle">{{ billingViewItem?.package_id || billingViewItem?.id }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="billingModals.view = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="billingModals.view = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
-        <div class="billing-view-content">
-          <div class="form-grid">
-            <div>
-              <p class="input-label">Customer Name</p>
-              <p class="view-value">{{ billingViewItem?.customer_name }}</p>
+        <div style="padding: 20px 24px;">
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Customer</span>
+              <span class="info-value">{{ billingViewItem?.customer_name }}</span>
             </div>
-            <div>
-              <p class="input-label">Alt Name</p>
-              <p class="view-value">{{ billingViewItem?.alt_name || '—' }}</p>
+            <div class="info-item">
+              <span class="info-label">Alt Name</span>
+              <span class="info-value">{{ billingViewItem?.alt_name || '—' }}</span>
             </div>
-            <div>
-              <p class="input-label">Tracking Number</p>
-              <p class="view-value">{{ billingViewItem?.tracking_number }}</p>
+            <div class="info-item">
+              <span class="info-label">Tracking</span>
+              <span class="info-value">{{ billingViewItem?.tracking_number }}</span>
             </div>
-            <div>
-              <p class="input-label">Weight</p>
-              <p class="view-value">{{ billingViewItem?.weight ? billingViewItem.weight + ' lb' : '—' }}</p>
+            <div class="info-item">
+              <span class="info-label">Weight</span>
+              <span class="info-value">{{ billingViewItem?.weight ? billingViewItem.weight + ' lb' : '—' }}</span>
             </div>
-            <div>
-              <p class="input-label">Shipment Log Status</p>
-              <p class="view-value">{{ billingViewItem?.status || '—' }}</p>
+            <div class="info-item">
+              <span class="info-label">SL Status</span>
+              <span class="info-value">{{ billingViewItem?.status || '—' }}</span>
             </div>
-            <div>
-              <p class="input-label">Billing Status</p>
-              <p class="view-value">{{ billingViewItem?.billing_status || 'unbilled' }}</p>
-            </div>
-          </div>
-          <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color);" />
-          <h4 style="margin-bottom: 12px; font-size: 16px;">Billing Information</h4>
-          <div class="form-grid">
-            <div>
-              <p class="input-label">Package Cost</p>
-              <p class="view-value">{{ formatCurrency(billingViewItem?.package_cost || 0) }}</p>
-            </div>
-            <div>
-              <p class="input-label">Import Fee</p>
-              <p class="view-value">{{ formatCurrency(billingViewItem?.custom_fee || 0) }}</p>
-            </div>
-            <div>
-              <p class="input-label">Processing Fee</p>
-              <p class="view-value">{{ formatCurrency(billingViewItem?.processing_fee || 0) }}</p>
-            </div>
-            <div>
-              <p class="input-label">Late Fee</p>
-              <p class="view-value">{{ formatCurrency(billingViewItem?.late_fee || 0) }}</p>
-            </div>
-            <div>
-              <p class="input-label">Total Cost</p>
-              <p class="view-value"><strong>{{ formatCurrency(calculateItemCost(billingViewItem)) }}</strong></p>
-            </div>
-            <div>
-              <p class="input-label">Amount Paid</p>
-              <p class="view-value">{{ formatCurrency(billingViewItem?.amount_paid || 0) }}</p>
-            </div>
-            <div>
-              <p class="input-label">Payment Method</p>
-              <p class="view-value">{{ billingViewItem?.payment_method || '—' }}</p>
-            </div>
-            <div>
-              <p class="input-label">Bill Date</p>
-              <p class="view-value">{{ billingViewItem?.bill_date ? new Date(billingViewItem.bill_date).toLocaleDateString() : '—' }}</p>
-            </div>
-            <div>
-              <p class="input-label">Collection Date</p>
-              <p class="view-value">{{ billingViewItem?.collection_date ? new Date(billingViewItem.collection_date).toLocaleDateString() : '—' }}</p>
-            </div>
-            <div>
-              <p class="input-label">Billed By</p>
-              <p class="view-value">{{ billingViewItem?.billed_by || '—' }}</p>
-            </div>
-            <div>
-              <p class="input-label">Collected By</p>
-              <p class="view-value">{{ billingViewItem?.collected_by || '—' }}</p>
-            </div>
-            <div>
-              <p class="input-label">Notes</p>
-              <p class="view-value">{{ billingViewItem?.billing_notes || '—' }}</p>
+            <div class="info-item">
+              <span class="info-label">BL Status</span>
+              <span class="info-value">{{ billingViewItem?.billing_status || 'Unbilled' }}</span>
             </div>
           </div>
-        </div>
-        <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="billingModals.view = false">Close</button>
+          <div class="section-divider"></div>
+          <h4 class="section-title">Billing Information</h4>
+          <div class="payment-info">
+            <div class="payment-row"><span>Package Cost</span><span>{{ formatCurrency(billingViewItem?.package_cost || 0) }}</span></div>
+            <div class="payment-row"><span>Import Fee</span><span>{{ formatCurrency(billingViewItem?.custom_fee || 0) }}</span></div>
+            <div class="payment-row"><span>Processing Fee</span><span>{{ formatCurrency(billingViewItem?.processing_fee || 0) }}</span></div>
+            <div class="payment-row"><span>Late Fee</span><span>{{ formatCurrency(billingViewItem?.late_fee || 0) }}</span></div>
+            <div class="payment-row total"><span>Total Cost</span><span>{{ formatCurrency(calculateItemCost(billingViewItem)) }}</span></div>
+            <div class="payment-row"><span>Amount Paid</span><span>{{ formatCurrency(billingViewItem?.amount_paid || 0) }}</span></div>
+          </div>
+          <div class="info-grid" style="margin-top: 16px;">
+            <div class="info-item">
+              <span class="info-label">Payment Method</span>
+              <span class="info-value">{{ billingViewItem?.payment_method || '—' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Bill Date</span>
+              <span class="info-value">{{ billingViewItem?.bill_date ? new Date(billingViewItem.bill_date).toLocaleDateString() : '—' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Collection Date</span>
+              <span class="info-value">{{ billingViewItem?.collection_date ? new Date(billingViewItem.collection_date).toLocaleDateString() : '—' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Billed By</span>
+              <span class="info-value">{{ billingViewItem?.billed_by || '—' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Collected By</span>
+              <span class="info-value">{{ billingViewItem?.collected_by || '—' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Notes</span>
+              <span class="info-value">{{ billingViewItem?.billing_notes || '—' }}</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="pill ghost" type="button" @click="billingModals.view = false">Close</button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Billing Edit Modal -->
     <div class="modal" v-if="billingModals.edit">
-      <div class="modal-card">
+      <div class="modal-card billing-modal" style="max-width: 480px;">
         <header>
           <div>
-            <p class="eyebrow">Edit Package</p>
-            <h3>{{ billingEditForm.packageId }}</h3>
+            <h3>Edit Package</h3>
+            <p class="modal-subtitle">{{ billingEditForm.packageId }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="billingModals.edit = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="billingModals.edit = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
         <form @submit.prevent="confirmBillingEdit">
-          <div class="form-grid">
-            <label>
-              <span class="input-label">Customer Name</span>
-              <input v-model="billingEditForm.customerName" type="text" required />
-            </label>
-            <label>
-              <span class="input-label">Alt Name</span>
-              <input v-model="billingEditForm.altName" type="text" />
-            </label>
-            <label>
-              <span class="input-label">Weight (lb)</span>
-              <input v-model.number="billingEditForm.weight" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              <span class="input-label">Package Cost ($)</span>
-              <input v-model.number="billingEditForm.packageCost" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              <span class="input-label">Import Fee ($)</span>
-              <input v-model.number="billingEditForm.customFee" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              <span class="input-label">Processing Fee ($)</span>
-              <input v-model.number="billingEditForm.processingFee" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              <span class="input-label">Late Fee ($)</span>
-              <input v-model.number="billingEditForm.lateFee" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              <span class="input-label">Payment Method</span>
-              <select v-model="billingEditForm.paymentMethod">
+          <div class="billing-fields">
+            <div class="info-grid">
+              <div class="field-group">
+                <label class="field-label">Customer Name</label>
+                <input v-model="billingEditForm.customerName" type="text" required class="modern-input" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Alt Name</label>
+                <input v-model="billingEditForm.altName" type="text" class="modern-input" />
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Weight (lb)</label>
+              <input v-model.number="billingEditForm.weight" type="number" min="0" step="0.01" class="modern-input" />
+            </div>
+            <div class="section-divider"></div>
+            <h4 class="section-title">Billing Details</h4>
+            <div class="info-grid">
+              <div class="field-group">
+                <label class="field-label">Package Cost</label>
+                <div class="input-with-prefix">
+                  <span class="prefix">$</span>
+                  <input v-model.number="billingEditForm.packageCost" type="number" min="0" step="0.01" placeholder="0.00" />
+                </div>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Import Fee</label>
+                <div class="input-with-prefix">
+                  <span class="prefix">$</span>
+                  <input v-model.number="billingEditForm.customFee" type="number" min="0" step="0.01" placeholder="0.00" />
+                </div>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Processing Fee</label>
+                <div class="input-with-prefix">
+                  <span class="prefix">$</span>
+                  <input v-model.number="billingEditForm.processingFee" type="number" min="0" step="0.01" placeholder="0.00" />
+                </div>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Late Fee</label>
+                <div class="input-with-prefix">
+                  <span class="prefix">$</span>
+                  <input v-model.number="billingEditForm.lateFee" type="number" min="0" step="0.01" placeholder="0.00" />
+                </div>
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Payment Method</label>
+              <select v-model="billingEditForm.paymentMethod" class="modern-select">
                 <option value="">None</option>
                 <option value="Cash">Cash</option>
                 <option value="POS">POS</option>
                 <option value="Transfer">Transfer</option>
                 <option value="Loyalty">Loyalty</option>
               </select>
-            </label>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Billing Notes</label>
+              <textarea v-model="billingEditForm.billingNotes" rows="2" placeholder="Notes..." class="modern-textarea"></textarea>
+            </div>
           </div>
-          <label>
-            <span class="input-label">Billing Notes</span>
-            <textarea v-model="billingEditForm.billingNotes" rows="2" placeholder="Notes..."></textarea>
-          </label>
-          <div class="modal-actions">
+          <div class="modal-footer">
             <button class="pill ghost" type="button" @click="billingModals.edit = false">Cancel</button>
             <button class="pill" type="submit">Save Changes</button>
           </div>
@@ -2161,24 +2191,36 @@
 
     <!-- Billing Delete Modal -->
     <div class="modal" v-if="billingModals.delete">
-      <div class="modal-card">
+      <div class="modal-card billing-modal">
         <header>
           <div>
-            <p class="eyebrow">Delete Package</p>
-            <h3>{{ billingDeleteItem?.package_id || billingDeleteItem?.id }}</h3>
+            <h3>Delete Package</h3>
+            <p class="modal-subtitle">{{ billingDeleteItem?.package_id || billingDeleteItem?.id }}</p>
           </div>
-          <button class="icon-btn" aria-label="Close modal" @click="billingModals.delete = false">&times;</button>
+          <button class="close-btn" aria-label="Close modal" @click="billingModals.delete = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </header>
-        <p class="muted" style="margin-bottom: 16px;">
-          Are you sure you want to delete this package? This action cannot be undone.
-        </p>
-        <div class="billing-info-row">
-          <div><strong>Customer:</strong> {{ billingDeleteItem?.customer_name }}</div>
-          <div><strong>Tracking:</strong> {{ billingDeleteItem?.tracking_number }}</div>
-        </div>
-        <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="billingModals.delete = false">Cancel</button>
-          <button class="pill danger" type="button" @click="confirmBillingDelete">Delete Package</button>
+        <div style="padding: 20px 24px;">
+          <div class="delete-warning">
+            <p>Are you sure you want to delete this package? This action cannot be undone.</p>
+          </div>
+          <div class="delete-info">
+            <div class="delete-info-row">
+              <span>Customer</span>
+              <span>{{ billingDeleteItem?.customer_name }}</span>
+            </div>
+            <div class="delete-info-row">
+              <span>Tracking</span>
+              <span>{{ billingDeleteItem?.tracking_number }}</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="pill ghost" type="button" @click="billingModals.delete = false">Cancel</button>
+            <button class="pill danger" type="button" @click="confirmBillingDelete">Delete Package</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3742,21 +3784,25 @@ const stats = computed(() => {
 
 // ==================== BILLING CONSOLE COMPUTED ====================
 const filteredBillingItems = computed(() => {
+  const query = billingSearchQuery.value.trim().toLowerCase();
+
+  // Only show results when there's a search query
+  if (!query) {
+    return [];
+  }
+
   let items = billingItems.value;
+
+  // Filter by search query
+  items = items.filter(item =>
+    (item.customer_name && item.customer_name.toLowerCase().includes(query)) ||
+    (item.package_id && item.package_id.toLowerCase().includes(query)) ||
+    (item.tracking_number && item.tracking_number.toLowerCase().includes(query))
+  );
 
   // Filter by billing status
   if (billingStatusFilter.value !== 'all') {
     items = items.filter(item => item.billing_status === billingStatusFilter.value);
-  }
-
-  // Filter by search query
-  const query = billingSearchQuery.value.trim().toLowerCase();
-  if (query) {
-    items = items.filter(item =>
-      (item.customer_name && item.customer_name.toLowerCase().includes(query)) ||
-      (item.package_id && item.package_id.toLowerCase().includes(query)) ||
-      (item.tracking_number && item.tracking_number.toLowerCase().includes(query))
-    );
   }
 
   return items;
@@ -6722,5 +6768,561 @@ td .tag.danger {
   background: rgba(220, 38, 38, 0.12);
   color: #991b1b;
   border-color: rgba(220, 38, 38, 0.25);
+}
+
+/* Billing Table Body Text Styles */
+#dashboard tbody td {
+  font-size: 14px;
+  color: #708090;
+}
+
+#dashboard tbody td strong {
+  color: var(--text-main);
+}
+
+/* Kebab Menu - Horizontal Dots */
+.kebab-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.kebab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  background: #ffffff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.kebab-btn:hover {
+  background: #f8fafb;
+  border-color: var(--sgx-light);
+}
+
+.kebab-dots {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.kebab-dots::before,
+.kebab-dots::after {
+  content: '';
+  width: 4px;
+  height: 4px;
+  background: #64748b;
+  border-radius: 50%;
+}
+
+.kebab-dots span {
+  width: 4px;
+  height: 4px;
+  background: #64748b;
+  border-radius: 50%;
+}
+
+.kebab-btn:hover .kebab-dots::before,
+.kebab-btn:hover .kebab-dots::after,
+.kebab-btn:hover .kebab-dots span {
+  background: var(--sgx-blue);
+}
+
+.kebab-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  min-width: 140px;
+  overflow: hidden;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kebab-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.kebab-dropdown button:hover {
+  background: rgba(0, 174, 239, 0.08);
+  color: var(--sgx-blue);
+}
+
+.kebab-dropdown button.danger {
+  color: #dc2626;
+}
+
+.kebab-dropdown button.danger:hover {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+}
+
+/* Modern Billing Modal Styles */
+.billing-modal {
+  max-width: 420px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: visible;
+}
+
+.billing-modal header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.billing-modal header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.modal-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.close-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 8px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.close-btn:hover {
+  background: #e2e8f0;
+  color: var(--text-main);
+}
+
+.billing-modal form {
+  padding: 20px 24px;
+}
+
+.billing-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.input-with-prefix {
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.15s ease;
+}
+
+.input-with-prefix:focus-within {
+  border-color: var(--sgx-light);
+  box-shadow: 0 0 0 3px rgba(0, 174, 239, 0.1);
+}
+
+.input-with-prefix .prefix {
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  background: #f1f5f9;
+  border-right: 1px solid #e2e8f0;
+  height: 42px;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-prefix input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text-main);
+  outline: none;
+}
+
+.input-with-prefix input::placeholder {
+  color: #94a3b8;
+}
+
+.billing-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 12px;
+  margin-top: 20px;
+}
+
+.summary-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #0369a1;
+}
+
+.summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--sgx-blue);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-primary {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--sgx-blue) 0%, #003d7a 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 45, 98, 0.25);
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: #e2e8f0;
+  color: var(--text-main);
+}
+
+.btn-danger {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+
+/* View Modal Info Grid */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.info-value.highlight {
+  font-weight: 700;
+  color: var(--sgx-blue);
+}
+
+.section-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 20px 0;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 16px;
+}
+
+/* Payment Info Row */
+.payment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.payment-row span:first-child {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.payment-row span:last-child {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.payment-row.total {
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 4px;
+}
+
+.payment-row.total span:first-child {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.payment-row.total span:last-child {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sgx-blue);
+}
+
+.payment-row.balance span:last-child {
+  color: #059669;
+  font-weight: 600;
+}
+
+/* Delete Modal Warning */
+.delete-warning {
+  padding: 16px;
+  background: #fef2f2;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.delete-warning p {
+  font-size: 14px;
+  color: #991b1b;
+  margin: 0;
+}
+
+.delete-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+
+.delete-info-row {
+  display: flex;
+  gap: 8px;
+}
+
+.delete-info-row span:first-child {
+  font-size: 13px;
+  color: #64748b;
+  min-width: 80px;
+}
+
+.delete-info-row span:last-child {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+/* Modern Form Elements */
+.modern-input,
+.modern-select,
+.modern-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text-main);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.modern-input:focus,
+.modern-select:focus,
+.modern-textarea:focus {
+  border-color: var(--sgx-light);
+  box-shadow: 0 0 0 3px rgba(0, 174, 239, 0.1);
+}
+
+.modern-input::placeholder,
+.modern-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.modern-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.modern-textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+/* Collect Modal - Compact Layout */
+.collect-modal {
+  max-width: 400px !important;
+  overflow: hidden !important;
+}
+
+.collect-modal form {
+  padding: 16px 24px 20px;
+}
+
+.collect-summary {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.collect-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.collect-row span:first-child {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.collect-row span:last-child {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.collect-row .total-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sgx-blue);
+}
+
+.collect-row.balance-row {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 174, 239, 0.2);
+}
+
+.collect-row.balance-row span:last-child {
+  font-size: 15px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.collect-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.collect-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.collect-modal .modal-footer {
+  margin-top: 16px;
+  padding-top: 16px;
 }
 </style>

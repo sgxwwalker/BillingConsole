@@ -346,6 +346,33 @@ p {
   box-shadow: 0 0 0 6px rgba(0, 174, 239, 0.1);
 }
 
+.input-shell.with-clear input {
+  padding-right: 40px;
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.clear-search-btn:hover {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
 .autocomplete {
   position: absolute;
   top: calc(100% + 6px);
@@ -467,7 +494,7 @@ p {
   padding: 8px 14px;
   font-size: 13px;
   font-weight: 600;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
 }
 
 .pill:disabled {
