@@ -1086,77 +1086,98 @@
         </div>
 
         <!-- Roles Section with Cards -->
-        <div v-if="activeSettingsTab === 'roles'" class="card" style="margin-bottom: 32px;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 24px;">
-              <!-- Full Control Card -->
-              <div @click="openRolePermissionModal('full_control')" class="role-card">
-                <!-- Header: Title and Badge -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                  <h4 style="font-size: 20px; font-weight: 600; color: #4b5563; margin: 0;">Full Control</h4>
-                  <span style="background: #ede9fe; color: #7c3aed; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Admin</span>
+        <div v-if="activeSettingsTab === 'roles'" style="margin-bottom: 32px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+              <!-- Administrator Card -->
+              <div class="role-card-new">
+                <div class="role-card-header">
+                  <span class="role-user-count">Total {{ getUserCountByRole('full_control') }} users</span>
+                  <div class="role-avatar-stack">
+                    <div
+                      v-for="(user, idx) in getUsersByRole('full_control').slice(0, 3)"
+                      :key="user.id"
+                      class="role-avatar"
+                      :style="{ zIndex: 3 - idx, marginLeft: idx > 0 ? '-10px' : '0' }"
+                    >
+                      <img v-if="user.photo" :src="user.photo.startsWith('/') ? 'http://localhost:4000' + user.photo : user.photo" :alt="user.name" />
+                      <span v-else>{{ user.name.charAt(0) }}</span>
+                    </div>
+                    <div v-if="getUserCountByRole('full_control') > 3" class="role-avatar-more">
+                      +{{ getUserCountByRole('full_control') - 3 }}
+                    </div>
+                  </div>
                 </div>
-
-                <!-- Divider -->
-                <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
-
-                <!-- Large Text Label -->
-                <div style="font-size: 28px; font-weight: 700; margin-bottom: 12px; text-align: center; color: #7c3aed;">Administrator</div>
-
-                <!-- Description -->
-                <p style="font-size: 15px; color: #6b7280; text-align: center; margin-bottom: 20px;">Full system access with all permissions</p>
-
-                <!-- Bottom Stats -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #e5e7eb;">
-                  <span style="font-size: 14px; color: #9ca3af;">Total Permissions</span>
-                  <span style="font-size: 16px; font-weight: 700; color: #111827;">All</span>
-                </div>
-              </div>
-
-              <!-- Editor Card -->
-              <div @click="openRolePermissionModal('editor')" class="role-card">
-                <!-- Header: Title and Badge -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                  <h4 style="font-size: 20px; font-weight: 600; color: #4b5563; margin: 0;">Editor</h4>
-                  <span style="background: #fce7f3; color: #db2777; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Edit Access</span>
-                </div>
-
-                <!-- Divider -->
-                <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
-
-                <!-- Large Text Label -->
-                <div style="font-size: 28px; font-weight: 700; margin-bottom: 12px; text-align: center; color: #db2777;">Manager</div>
-
-                <!-- Description -->
-                <p style="font-size: 15px; color: #6b7280; text-align: center; margin-bottom: 20px;">Can edit and manage content</p>
-
-                <!-- Bottom Stats -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #e5e7eb;">
-                  <span style="font-size: 14px; color: #9ca3af;">Total Permissions</span>
-                  <span style="font-size: 16px; font-weight: 700; color: #111827;">Most</span>
+                <h3 class="role-card-title">Administrator</h3>
+                <div class="role-card-footer">
+                  <button class="role-edit-link" @click="openRolePermissionModal('full_control')">Edit Role</button>
+                  <button class="role-duplicate-btn" @click="duplicateRoleCard('full_control')" title="Duplicate Role">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
                 </div>
               </div>
 
-              <!-- View Only Card -->
-              <div @click="openRolePermissionModal('view_only')" class="role-card">
-                <!-- Header: Title and Badge -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                  <h4 style="font-size: 20px; font-weight: 600; color: #4b5563; margin: 0;">View Only</h4>
-                  <span style="background: #dbeafe; color: #2563eb; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">Read-Only</span>
+              <!-- Manager Card -->
+              <div class="role-card-new">
+                <div class="role-card-header">
+                  <span class="role-user-count">Total {{ getUserCountByRole('editor') }} users</span>
+                  <div class="role-avatar-stack">
+                    <div
+                      v-for="(user, idx) in getUsersByRole('editor').slice(0, 3)"
+                      :key="user.id"
+                      class="role-avatar"
+                      :style="{ zIndex: 3 - idx, marginLeft: idx > 0 ? '-10px' : '0' }"
+                    >
+                      <img v-if="user.photo" :src="user.photo.startsWith('/') ? 'http://localhost:4000' + user.photo : user.photo" :alt="user.name" />
+                      <span v-else>{{ user.name.charAt(0) }}</span>
+                    </div>
+                    <div v-if="getUserCountByRole('editor') > 3" class="role-avatar-more">
+                      +{{ getUserCountByRole('editor') - 3 }}
+                    </div>
+                  </div>
                 </div>
+                <h3 class="role-card-title">Manager</h3>
+                <div class="role-card-footer">
+                  <button class="role-edit-link" @click="openRolePermissionModal('editor')">Edit Role</button>
+                  <button class="role-duplicate-btn" @click="duplicateRoleCard('editor')" title="Duplicate Role">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
 
-                <!-- Divider -->
-                <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
-
-                <!-- Large Text Label -->
-                <div style="font-size: 28px; font-weight: 700; margin-bottom: 12px; text-align: center; color: #2563eb;">Users</div>
-
-                <!-- Description -->
-                <p style="font-size: 15px; color: #6b7280; text-align: center; margin-bottom: 20px;">Read-only access to view data</p>
-
-                <!-- Bottom Stats -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #e5e7eb;">
-                  <span style="font-size: 14px; color: #9ca3af;">Total Permissions</span>
-                  <span style="font-size: 16px; font-weight: 700; color: #111827;">Limited</span>
+              <!-- Users Card -->
+              <div class="role-card-new">
+                <div class="role-card-header">
+                  <span class="role-user-count">Total {{ getUserCountByRole('view_only') }} users</span>
+                  <div class="role-avatar-stack">
+                    <div
+                      v-for="(user, idx) in getUsersByRole('view_only').slice(0, 3)"
+                      :key="user.id"
+                      class="role-avatar"
+                      :style="{ zIndex: 3 - idx, marginLeft: idx > 0 ? '-10px' : '0' }"
+                    >
+                      <img v-if="user.photo" :src="user.photo.startsWith('/') ? 'http://localhost:4000' + user.photo : user.photo" :alt="user.name" />
+                      <span v-else>{{ user.name.charAt(0) }}</span>
+                    </div>
+                    <div v-if="getUserCountByRole('view_only') > 3" class="role-avatar-more">
+                      +{{ getUserCountByRole('view_only') - 3 }}
+                    </div>
+                  </div>
+                </div>
+                <h3 class="role-card-title">Users</h3>
+                <div class="role-card-footer">
+                  <button class="role-edit-link" @click="openRolePermissionModal('view_only')">Edit Role</button>
+                  <button class="role-duplicate-btn" @click="duplicateRoleCard('view_only')" title="Duplicate Role">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1214,7 +1235,7 @@
                         fontWeight: '500',
                         display: 'inline-block'
                       }">
-                        {{ user.role === 'full_control' ? 'Full Control' : user.role === 'editor' ? 'Editor' : 'View Only' }}
+                        {{ user.role === 'full_control' ? 'Administrator' : user.role === 'editor' ? 'Manager' : 'Users' }}
                       </span>
                     </td>
                     <td style="padding: 16px 12px;">
@@ -2460,9 +2481,9 @@
             <label>
               <span class="input-label">Role</span>
               <select v-model="userForm.role" required>
-                <option value="full_control">Full Control</option>
-                <option value="editor">Editor</option>
-                <option value="view_only">View Only</option>
+                <option value="full_control">Administrator</option>
+                <option value="editor">Manager</option>
+                <option value="view_only">Users</option>
                 <option value="custom">Custom</option>
               </select>
             </label>
@@ -2505,9 +2526,9 @@
             <label>
               <span class="input-label">Role</span>
               <select v-model="userEditForm.role" required>
-                <option value="full_control">Full Control</option>
-                <option value="editor">Editor</option>
-                <option value="view_only">View Only</option>
+                <option value="full_control">Administrator</option>
+                <option value="editor">Manager</option>
+                <option value="view_only">Users</option>
                 <option value="custom">Custom</option>
               </select>
             </label>
@@ -3103,9 +3124,10 @@
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Role Permission Modal -->
-    <div v-if="rolePermissionModal" class="modal" @click.self="rolePermissionModal = false">
+  <!-- Role Permission Modal -->
+  <div v-if="rolePermissionModal" class="modal" @click.self="rolePermissionModal = false">
       <div class="modal-card billing-modal" style="max-width: 700px;">
         <header>
           <div>
@@ -3329,11 +3351,12 @@
         </div>
 
         <div class="modal-actions" style="margin-top: 24px;">
-          <button class="pill ghost" type="button" @click="rolePermissionModal = false">Cancel</button>
-          <button class="pill" type="button" @click="submitRolePermissionSettings" style="background: #3b82f6;">Submit</button>
+          <button class="pill ghost" type="button" @click="rolePermissionModal = false" :disabled="savingRolePermissions">Cancel</button>
+          <button class="pill" type="button" @click="submitRolePermissionSettings" style="background: #3b82f6;" :disabled="savingRolePermissions">
+            {{ savingRolePermissions ? 'Saving...' : 'Save Permissions' }}
+          </button>
         </div>
       </div>
-    </div>
   </div>
 
 </template>
@@ -4462,9 +4485,9 @@ const latestNote = (pkg) => (pkg.notes?.length ? pkg.notes[pkg.notes.length - 1]
 // Helper function to display readable role names
 const getRoleDisplayName = (roleId) => {
   const roleNames = {
-    'full_control': 'Full Control',
-    'editor': 'Editor',
-    'view_only': 'View Only'
+    'full_control': 'Administrator',
+    'editor': 'Manager',
+    'view_only': 'Users'
   };
   return roleNames[roleId] || roleId;
 };
@@ -6250,20 +6273,45 @@ const loadPermissions = async () => {
 };
 
 // New Role Permission Modal Functions
-const openRolePermissionModal = (roleName) => {
+const openRolePermissionModal = async (roleName) => {
   selectedRoleForPermissions.value = roleName;
-  // Reset all permissions
+  // Reset all permissions first
   Object.keys(rolePermissionSettings).forEach(key => {
     rolePermissionSettings[key] = { read: false, write: false, create: false };
   });
-  // Set permissions based on role type
+
+  // Fetch permissions from backend
+  try {
+    const response = await fetch(`http://localhost:4000/api/role-settings/${roleName}`);
+    const data = await response.json();
+
+    if (data.success && data.roleSettings && data.roleSettings.permissions) {
+      // Load permissions from database
+      const savedPermissions = data.roleSettings.permissions;
+      Object.keys(rolePermissionSettings).forEach(key => {
+        if (savedPermissions[key]) {
+          rolePermissionSettings[key] = { ...savedPermissions[key] };
+        }
+      });
+    } else {
+      // Fallback to default permissions if no saved settings
+      setDefaultRolePermissions(roleName);
+    }
+  } catch (error) {
+    console.error('Error fetching role settings:', error);
+    // Fallback to default permissions on error
+    setDefaultRolePermissions(roleName);
+  }
+
+  rolePermissionModal.value = true;
+};
+
+const setDefaultRolePermissions = (roleName) => {
   if (roleName === 'full_control') {
-    // Full Control gets all permissions
     Object.keys(rolePermissionSettings).forEach(key => {
       rolePermissionSettings[key] = { read: true, write: true, create: true };
     });
   } else if (roleName === 'editor') {
-    // Editors get read/write on most, create on some
     Object.keys(rolePermissionSettings).forEach(key => {
       if (key === 'apiConfiguration' || key === 'settingsManagement') {
         rolePermissionSettings[key] = { read: true, write: false, create: false };
@@ -6272,7 +6320,6 @@ const openRolePermissionModal = (roleName) => {
       }
     });
   } else if (roleName === 'view_only') {
-    // View Only get read-only on most
     Object.keys(rolePermissionSettings).forEach(key => {
       if (key === 'packageManagement' || key === 'customerManagement') {
         rolePermissionSettings[key] = { read: true, write: true, create: false };
@@ -6281,13 +6328,39 @@ const openRolePermissionModal = (roleName) => {
       }
     });
   }
-  rolePermissionModal.value = true;
 };
 
-const submitRolePermissionSettings = () => {
-  console.log(`Saving permissions for ${selectedRoleForPermissions.value}:`, rolePermissionSettings);
-  // TODO: Make API call to save permissions
-  rolePermissionModal.value = false;
+const savingRolePermissions = ref(false);
+
+const submitRolePermissionSettings = async () => {
+  savingRolePermissions.value = true;
+  try {
+    const response = await fetch(`http://localhost:4000/api/role-settings/${selectedRoleForPermissions.value}/permissions`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ permissions: rolePermissionSettings }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      console.log(`Permissions saved for ${selectedRoleForPermissions.value}. ${data.usersUpdated} users updated.`);
+      // Show success message
+      alert(`Role permissions updated successfully! ${data.usersUpdated} user(s) have been updated with the new permissions.`);
+      rolePermissionModal.value = false;
+      // Refresh users list to reflect updated permissions
+      fetchEmployees();
+    } else {
+      alert('Error saving permissions: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Error saving role permissions:', error);
+    alert('Error saving permissions. Please try again.');
+  } finally {
+    savingRolePermissions.value = false;
+  }
 };
 
 const toggleAllPermissions = (category, value) => {
@@ -6296,6 +6369,23 @@ const toggleAllPermissions = (category, value) => {
     rolePermissionSettings[category].write = value;
     rolePermissionSettings[category].create = value;
   }
+};
+
+// Role Card Helper Functions
+const getUsersByRole = (role) => {
+  return employees.filter(e => e.role === role);
+};
+
+const getUserCountByRole = (role) => {
+  return employees.filter(e => e.role === role).length;
+};
+
+const duplicateRoleCard = (role) => {
+  // Open the permission modal with the selected role's settings pre-filled
+  // This allows creating a custom role based on an existing one
+  openRolePermissionModal(role);
+  // TODO: In the future, this could create a new custom role entry
+  alert(`Duplicating ${role === 'full_control' ? 'Administrator' : role === 'editor' ? 'Manager' : 'Users'} role settings. You can now modify the permissions.`);
 };
 
 const filteredEmployees = computed(() => {

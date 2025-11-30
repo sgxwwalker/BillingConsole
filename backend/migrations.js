@@ -16,6 +16,9 @@ export function runMigrations() {
     // Add user profile columns (Migration 003)
     addUserProfileColumns();
 
+    // Add role settings table (Migration 004)
+    addRoleSettingsTable();
+
     console.log('All migrations completed');
   } catch (error) {
     console.error('Error running migrations:', error);
@@ -139,5 +142,90 @@ function addUserProfileColumns() {
     }
   } catch (error) {
     console.error('  Error adding profile columns:', error.message);
+  }
+}
+
+/**
+ * Migration 004: Add role_settings table for storing role permissions
+ */
+function addRoleSettingsTable() {
+  try {
+    // Check if role_settings table exists
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='role_settings'").get();
+
+    if (!tableExists) {
+      // Create the table
+      db.exec(`
+        CREATE TABLE role_settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          role_name TEXT UNIQUE NOT NULL,
+          display_name TEXT NOT NULL,
+          permissions TEXT NOT NULL DEFAULT '{}',
+          created_at DATETIME DEFAULT (datetime('now')),
+          updated_at DATETIME DEFAULT (datetime('now'))
+        )
+      `);
+
+      // Insert default role settings
+      const defaultPermissions = {
+        full_control: {
+          displayName: 'Administrator',
+          permissions: {
+            packageManagement: { read: true, write: true, create: true },
+            customerManagement: { read: true, write: true, create: true },
+            orderManagement: { read: true, write: true, create: true },
+            collectionManagement: { read: true, write: true, create: true },
+            shipmentBinManagement: { read: true, write: true, create: true },
+            dashboardReporting: { read: true, write: true, create: true },
+            apiConfiguration: { read: true, write: true, create: true },
+            settingsManagement: { read: true, write: true, create: true },
+            userManagement: { read: true, write: true, create: true }
+          }
+        },
+        editor: {
+          displayName: 'Manager',
+          permissions: {
+            packageManagement: { read: true, write: true, create: true },
+            customerManagement: { read: true, write: true, create: true },
+            orderManagement: { read: true, write: true, create: true },
+            collectionManagement: { read: true, write: true, create: true },
+            shipmentBinManagement: { read: true, write: true, create: true },
+            dashboardReporting: { read: true, write: true, create: true },
+            apiConfiguration: { read: true, write: false, create: false },
+            settingsManagement: { read: true, write: false, create: false },
+            userManagement: { read: true, write: true, create: true }
+          }
+        },
+        view_only: {
+          displayName: 'Users',
+          permissions: {
+            packageManagement: { read: true, write: true, create: false },
+            customerManagement: { read: true, write: true, create: false },
+            orderManagement: { read: true, write: false, create: false },
+            collectionManagement: { read: true, write: false, create: false },
+            shipmentBinManagement: { read: true, write: false, create: false },
+            dashboardReporting: { read: true, write: false, create: false },
+            apiConfiguration: { read: true, write: false, create: false },
+            settingsManagement: { read: true, write: false, create: false },
+            userManagement: { read: true, write: false, create: false }
+          }
+        }
+      };
+
+      const insertStmt = db.prepare(`
+        INSERT INTO role_settings (role_name, display_name, permissions)
+        VALUES (?, ?, ?)
+      `);
+
+      for (const [roleName, roleData] of Object.entries(defaultPermissions)) {
+        insertStmt.run(roleName, roleData.displayName, JSON.stringify(roleData.permissions));
+      }
+
+      console.log('  Created role_settings table with default permissions');
+    } else {
+      console.log('  role_settings table already exists');
+    }
+  } catch (error) {
+    console.error('  Error creating role_settings table:', error.message);
   }
 }

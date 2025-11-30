@@ -26,6 +26,7 @@ import db, {
   roleQueries,
   permissionQueries,
   rolePermissionQueries,
+  roleSettingsQueries,
   apiConfigQueries,
   apiSyncLogQueries,
 } from './database.js';
@@ -1679,6 +1680,73 @@ app.post('/api/roles/:id/duplicate', (req, res) => {
       return res.status(400).json({ error: 'A role with this name already exists' });
     }
     res.status(500).json({ error: 'Failed to duplicate role' });
+  }
+});
+
+// ==================== ROLE SETTINGS ENDPOINTS ====================
+
+// Get all role settings (with permissions)
+app.get('/api/role-settings', (req, res) => {
+  try {
+    const roleSettings = roleSettingsQueries.getAll();
+    res.json({ success: true, roleSettings });
+  } catch (error) {
+    console.error('Error fetching role settings:', error);
+    res.status(500).json({ error: 'Failed to fetch role settings' });
+  }
+});
+
+// Get role settings by role name
+app.get('/api/role-settings/:roleName', (req, res) => {
+  try {
+    const { roleName } = req.params;
+    const roleSettings = roleSettingsQueries.getByRoleName(roleName);
+
+    if (!roleSettings) {
+      return res.status(404).json({ error: 'Role settings not found' });
+    }
+
+    res.json({ success: true, roleSettings });
+  } catch (error) {
+    console.error('Error fetching role settings:', error);
+    res.status(500).json({ error: 'Failed to fetch role settings' });
+  }
+});
+
+// Update role permissions
+app.put('/api/role-settings/:roleName/permissions', (req, res) => {
+  try {
+    const { roleName } = req.params;
+    const { permissions } = req.body;
+
+    if (!permissions) {
+      return res.status(400).json({ error: 'Permissions are required' });
+    }
+
+    const existingRole = roleSettingsQueries.getByRoleName(roleName);
+    if (!existingRole) {
+      return res.status(404).json({ error: 'Role settings not found' });
+    }
+
+    roleSettingsQueries.updatePermissions(roleName, permissions);
+
+    // Update custom_permissions for all users with this role
+    const usersWithRole = userQueries.getAll().filter(u => u.role === roleName);
+    for (const user of usersWithRole) {
+      userQueries.update(user.id, {
+        ...user,
+        customPermissions: permissions
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Role permissions updated successfully. ${usersWithRole.length} users updated.`,
+      usersUpdated: usersWithRole.length
+    });
+  } catch (error) {
+    console.error('Error updating role permissions:', error);
+    res.status(500).json({ error: 'Failed to update role permissions' });
   }
 });
 

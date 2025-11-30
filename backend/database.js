@@ -789,6 +789,45 @@ export const rolePermissionQueries = {
   },
 };
 
+// Role settings queries (for storing role permission defaults)
+export const roleSettingsQueries = {
+  getAll: () => {
+    const results = db.prepare('SELECT * FROM role_settings ORDER BY role_name').all();
+    return results.map(row => ({
+      ...row,
+      permissions: JSON.parse(row.permissions || '{}')
+    }));
+  },
+
+  getByRoleName: (roleName) => {
+    const row = db.prepare('SELECT * FROM role_settings WHERE role_name = ?').get(roleName);
+    if (row) {
+      return {
+        ...row,
+        permissions: JSON.parse(row.permissions || '{}')
+      };
+    }
+    return null;
+  },
+
+  updatePermissions: (roleName, permissions) => {
+    const stmt = db.prepare(`
+      UPDATE role_settings
+      SET permissions = ?, updated_at = datetime('now')
+      WHERE role_name = ?
+    `);
+    return stmt.run(JSON.stringify(permissions), roleName);
+  },
+
+  create: (roleName, displayName, permissions) => {
+    const stmt = db.prepare(`
+      INSERT INTO role_settings (role_name, display_name, permissions)
+      VALUES (?, ?, ?)
+    `);
+    return stmt.run(roleName, displayName, JSON.stringify(permissions));
+  }
+};
+
 // API config queries
 export const apiConfigQueries = {
   get: () => db.prepare('SELECT * FROM api_config WHERE id = 1').get(),
