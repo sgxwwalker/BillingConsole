@@ -3359,6 +3359,45 @@
       </div>
   </div>
 
+  <!-- Toast Notifications Container -->
+  <div class="toast-container">
+    <transition-group name="toast">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        :class="['toast', `toast-${toast.type}`]"
+      >
+        <div class="toast-icon">
+          <svg v-if="toast.type === 'success'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
+          <svg v-else-if="toast.type === 'error'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M15 9l-6 6M9 9l6 6"/>
+          </svg>
+          <svg v-else-if="toast.type === 'warning'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+        </div>
+        <div class="toast-content">
+          <p class="toast-message">{{ toast.message }}</p>
+        </div>
+        <button class="toast-close" @click="removeToast(toast.id)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </transition-group>
+  </div>
+
 </template>
 
 <script setup>
@@ -3692,6 +3731,31 @@ const loginForm = reactive({
   rememberMe: initialCreds.rememberMe || false
 });
 const loginError = ref("");
+
+// Toast notifications
+const toasts = ref([]);
+let toastIdCounter = 0;
+
+const showToast = (message, type = 'info', duration = 4000) => {
+  const id = ++toastIdCounter;
+  toasts.value.push({ id, message, type });
+
+  if (duration > 0) {
+    setTimeout(() => {
+      removeToast(id);
+    }, duration);
+  }
+
+  return id;
+};
+
+const removeToast = (id) => {
+  const index = toasts.value.findIndex(t => t.id === id);
+  if (index > -1) {
+    toasts.value.splice(index, 1);
+  }
+};
+
 const profileForm = reactive({
   name: "",
   email: "",
@@ -4609,6 +4673,7 @@ const confirmCollection = () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }).catch((err) => console.error('Collect sync failed', err));
+  showToast(`${selectedPackages.value.length} package(s) marked as collected`, 'success');
   closeModal("collection");
 };
 
@@ -4634,6 +4699,7 @@ const confirmEdit = () => {
     pkg.notes.push(editForm.note.trim());
   }
   pkg.updatedBy = currentUser.value?.name || pkg.updatedBy;
+  showToast('Package updated successfully', 'success');
   closeModal("edit");
 };
 
@@ -4650,6 +4716,7 @@ const confirmDelete = () => {
   pkg.notes = pkg.notes || [];
   pkg.notes.push(`Deleted: ${deleteForm.note.trim()}`);
   pkg.updatedBy = currentUser.value?.name || pkg.updatedBy;
+  showToast('Package deleted successfully', 'success');
   closeModal("delete");
 };
 
@@ -4744,10 +4811,14 @@ const updateBillingStatus = async (item, status) => {
     if (data.success) {
       item.billing_status = status;
       openBLStatusDropdownId.value = null;
+      showToast(`Billing status updated to ${status}`, 'success');
       await loadBillingStats();
+    } else {
+      showToast(data.error || 'Failed to update billing status', 'error');
     }
   } catch (error) {
     console.error('Error updating billing status:', error);
+    showToast('Failed to update billing status', 'error');
   }
 };
 
@@ -4777,11 +4848,15 @@ const confirmBill = async () => {
     const data = await response.json();
     if (data.success) {
       billingModals.bill = false;
+      showToast('Package billed successfully', 'success');
       await loadBillingItems();
       await loadBillingStats();
+    } else {
+      showToast(data.error || 'Failed to bill package', 'error');
     }
   } catch (error) {
     console.error('Error billing item:', error);
+    showToast('Failed to bill package', 'error');
   }
 };
 
@@ -4824,11 +4899,15 @@ const confirmCollect = async () => {
     const data = await response.json();
     if (data.success) {
       billingModals.collect = false;
+      showToast('Payment collected successfully', 'success');
       await loadBillingItems();
       await loadBillingStats();
+    } else {
+      showToast(data.error || 'Failed to collect payment', 'error');
     }
   } catch (error) {
     console.error('Error collecting payment:', error);
+    showToast('Failed to collect payment', 'error');
   }
 };
 
@@ -4873,11 +4952,15 @@ const confirmBillingEdit = async () => {
     const data = await response.json();
     if (data.success) {
       billingModals.edit = false;
+      showToast('Billing details updated successfully', 'success');
       await loadBillingItems();
       await loadBillingStats();
+    } else {
+      showToast(data.error || 'Failed to update billing details', 'error');
     }
   } catch (error) {
     console.error('Error editing billing item:', error);
+    showToast('Failed to update billing details', 'error');
   }
 };
 
@@ -4896,11 +4979,15 @@ const confirmBillingDelete = async () => {
     if (data.success) {
       billingModals.delete = false;
       billingDeleteItem.value = null;
+      showToast('Billing record deleted successfully', 'success');
       await loadBillingItems();
       await loadBillingStats();
+    } else {
+      showToast(data.error || 'Failed to delete billing record', 'error');
     }
   } catch (error) {
     console.error('Error deleting billing item:', error);
+    showToast('Failed to delete billing record', 'error');
   }
 };
 
@@ -4946,6 +5033,7 @@ const confirmAddPackage = () => {
   if (!activeCustomer.value) {
     activeCustomerId.value = customer.id;
   }
+  showToast('Package added successfully', 'success');
   closeModal("add");
 };
 
@@ -5065,12 +5153,15 @@ const confirmOrderAdd = async () => {
       // But the order from backend has snake_case, use our newOrder which has correct field names
       orders.value.push(newOrder);
       loadDailySummary(); // Refresh daily summary to update Credit Card cards
+      showToast('Order created successfully', 'success');
     } else {
       orders.value.push(newOrder); // Fallback to local
+      showToast('Order created locally', 'warning');
     }
   } catch (error) {
     console.error('Error saving order:', error);
     orders.value.push(newOrder); // Fallback to local
+    showToast('Order created locally', 'warning');
   }
   orderModals.add = false;
 };
@@ -5109,8 +5200,10 @@ const confirmOrderEdit = async () => {
         body: JSON.stringify(order),
       });
       loadDailySummary(); // Refresh daily summary to update Credit Card cards
+      showToast('Order updated successfully', 'success');
     } catch (error) {
       console.error('Error updating order:', error);
+      showToast('Failed to update order', 'error');
     }
   }
   orderModals.edit = false;
@@ -5121,6 +5214,7 @@ const markOrderReceived = (order) => {
   order.status = "Received";
   order.updatedBy = currentUser.value.name;
   order.date = new Date().toISOString().split("T")[0];
+  showToast('Order marked as received', 'success');
 };
 
 const openOrderDelete = (orderId) => {
@@ -5135,11 +5229,14 @@ const confirmOrderDelete = () => {
     const index = orders.value.findIndex((o) => o.id === orderDeleteId.value);
     if (index !== -1) {
       orders.value.splice(index, 1);
+      showToast('Order deleted successfully', 'success');
     }
   } else {
     // Bulk delete
+    const count = selectedOrderIds.value.length;
     orders.value = orders.value.filter((o) => !selectedOrderIds.value.includes(o.id));
     selectedOrderIds.value = [];
+    showToast(`${count} order(s) deleted successfully`, 'success');
   }
   orderModals.delete = false;
   orderDeleteId.value = "";
@@ -5393,11 +5490,13 @@ const syncPackagesFromCourierDepot = async () => {
     await loadPackagesFromBackend();
 
     apiSyncStatus.value = `Sync complete! Imported ${imported} new packages, updated ${updated} existing packages.`;
+    showToast(`Sync complete! Imported ${imported} new, updated ${updated} packages`, 'success');
     setTimeout(() => { apiSyncStatus.value = ""; }, 5000);
 
   } catch (error) {
     console.error('Sync error:', error);
     apiSyncStatus.value = `Sync failed: ${error.message}`;
+    showToast(`Sync failed: ${error.message}`, 'error');
     setTimeout(() => { apiSyncStatus.value = ""; }, 5000);
   } finally {
     isSyncing.value = false;
@@ -5474,9 +5573,11 @@ const login = () => {
   profileForm.photo = employee.photo || "";
   currentPage.value = allowedPages.value.includes("dashboard") ? "dashboard" : allowedPages.value[0];
   loginError.value = "";
+  showToast(`Welcome back, ${employee.name}!`, 'success');
 };
 
 const signOut = () => {
+  showToast('You have been signed out', 'info');
   currentUser.value = null;
   currentPage.value = "login";
 };
@@ -5503,13 +5604,13 @@ const handlePhotoSelect = (event) => {
 
   // Validate file size (5MB max)
   if (file.size > 5 * 1024 * 1024) {
-    alert('Photo must be less than 5MB');
+    showToast('Photo must be less than 5MB', 'error');
     return;
   }
 
   // Validate file type
   if (!file.type.startsWith('image/')) {
-    alert('Please select an image file');
+    showToast('Please select an image file', 'error');
     return;
   }
 
@@ -5573,14 +5674,15 @@ const saveProfile = async () => {
       profilePhotoFile.value = null;
       profilePhotoPreview.value = null;
       profileSaveSuccess.value = true;
+      showToast('Profile updated successfully', 'success');
       setTimeout(() => { profileSaveSuccess.value = false; }, 3000);
     } else {
       const error = await response.json();
-      alert(error.error || 'Failed to save profile');
+      showToast(error.error || 'Failed to save profile', 'error');
     }
   } catch (error) {
     console.error('Error saving profile:', error);
-    alert('Failed to save profile. Please try again.');
+    showToast('Failed to save profile. Please try again.', 'error');
   } finally {
     profileSaving.value = false;
   }
@@ -5630,14 +5732,17 @@ const changePassword = async () => {
       passwordForm.currentPassword = "";
       passwordForm.newPassword = "";
       passwordForm.confirmPassword = "";
+      showToast('Password changed successfully', 'success');
       setTimeout(() => { passwordSuccess.value = false; }, 3000);
     } else {
       const error = await response.json();
       passwordError.value = error.error || 'Failed to change password';
+      showToast(error.error || 'Failed to change password', 'error');
     }
   } catch (error) {
     console.error('Error changing password:', error);
     passwordError.value = 'Failed to change password. Please try again.';
+    showToast('Failed to change password', 'error');
   } finally {
     passwordChanging.value = false;
   }
@@ -5680,6 +5785,7 @@ const confirmUserAdd = () => {
   };
   employees.push(newUser);
   userModals.add = false;
+  showToast(`User "${userForm.name}" created successfully`, 'success');
   userForm.name = "";
   userForm.email = "";
   userForm.password = "";
@@ -5705,15 +5811,18 @@ const confirmUserEdit = () => {
       currentUser.value.role = user.role;
       currentUser.value.customPermissions = user.customPermissions;
     }
+    showToast(`User "${user.name}" updated successfully`, 'success');
   }
   userModals.edit = false;
 };
 
 const confirmUserDelete = () => {
   if (!userDeleteTarget.value) return;
+  const userName = userDeleteTarget.value.name;
   const index = employees.findIndex((e) => e.id === userDeleteTarget.value.id);
   if (index !== -1) {
     employees.splice(index, 1);
+    showToast(`User "${userName}" deleted successfully`, 'success');
   }
   userModals.delete = false;
   userDeleteTarget.value = null;
@@ -5839,16 +5948,13 @@ const confirmShipmentUpload = async () => {
       await loadShipmentItems();
 
       // Show success message
-      scanMessage.value = `Successfully uploaded ${data.itemsProcessed} packages`;
-      scanStatus.value = 'info';
-      setTimeout(() => {
-        scanMessage.value = '';
-      }, 5000);
+      showToast(`Successfully uploaded ${data.itemsProcessed} packages`, 'success');
+    } else {
+      showToast(data.error || 'Failed to upload shipment log', 'error');
     }
   } catch (error) {
     console.error('Failed to upload shipment log:', error);
-    scanMessage.value = 'Failed to upload shipment log';
-    scanStatus.value = 'error';
+    showToast('Failed to upload shipment log', 'error');
   }
 };
 
@@ -5873,13 +5979,11 @@ const scanPackage = async () => {
 
     if (data.status === 'not_found') {
       // Not found in any log
-      scanMessage.value = 'Tracking number not found in any shipment log';
-      scanStatus.value = 'error';
+      showToast('Tracking number not found in any shipment log', 'warning');
       notFoundCount.value += 1;
     } else if (data.status === 'received') {
       // Found and marked as received
-      scanMessage.value = `Package received: ${data.item.customer_name}`;
-      scanStatus.value = 'info';
+      showToast(`Package received: ${data.item.customer_name}`, 'success');
       // Reload items to show updated status
       await loadShipmentItems();
     } else if (data.status === 'found_in_other_log') {
@@ -5896,15 +6000,9 @@ const scanPackage = async () => {
         scanInput.value.focus();
       }
     });
-
-    // Clear message after 3 seconds
-    setTimeout(() => {
-      scanMessage.value = '';
-    }, 3000);
   } catch (error) {
     console.error('Failed to scan package:', error);
-    scanMessage.value = 'Scan failed';
-    scanStatus.value = 'error';
+    showToast('Scan failed', 'error');
   }
 };
 
@@ -5925,8 +6023,7 @@ const confirmMovePackage = async () => {
     const data = await response.json();
     if (data.success) {
       shipmentModals.moveConfirm = false;
-      scanMessage.value = `Package moved to current log`;
-      scanStatus.value = 'info';
+      showToast('Package moved to current log', 'success');
       // Reload items
       await loadShipmentItems();
 
@@ -5942,15 +6039,12 @@ const confirmMovePackage = async () => {
       });
 
       await loadShipmentItems();
-
-      setTimeout(() => {
-        scanMessage.value = '';
-      }, 3000);
+    } else {
+      showToast(data.error || 'Failed to move package', 'error');
     }
   } catch (error) {
     console.error('Failed to move package:', error);
-    scanMessage.value = 'Failed to move package';
-    scanStatus.value = 'error';
+    showToast('Failed to move package', 'error');
   }
 };
 
@@ -5990,16 +6084,13 @@ const confirmShipmentEdit = async () => {
     if (data.success) {
       shipmentModals.edit = false;
       await loadShipmentLogs();
-      scanMessage.value = 'Shipment log updated successfully';
-      scanStatus.value = 'info';
-      setTimeout(() => {
-        scanMessage.value = '';
-      }, 3000);
+      showToast('Shipment log updated successfully', 'success');
+    } else {
+      showToast(data.error || 'Failed to update shipment log', 'error');
     }
   } catch (error) {
     console.error('Failed to update shipment log:', error);
-    scanMessage.value = 'Failed to update shipment log';
-    scanStatus.value = 'error';
+    showToast('Failed to update shipment log', 'error');
   }
 };
 
@@ -6029,16 +6120,13 @@ const confirmShipmentDelete = async () => {
       }
 
       await loadShipmentLogs();
-      scanMessage.value = 'Shipment log deleted successfully';
-      scanStatus.value = 'info';
-      setTimeout(() => {
-        scanMessage.value = '';
-      }, 3000);
+      showToast('Shipment log deleted successfully', 'success');
+    } else {
+      showToast(data.error || 'Failed to delete shipment log', 'error');
     }
   } catch (error) {
     console.error('Failed to delete shipment log:', error);
-    scanMessage.value = 'Failed to delete shipment log';
-    scanStatus.value = 'error';
+    showToast('Failed to delete shipment log', 'error');
   }
 };
 
@@ -6080,27 +6168,20 @@ const confirmItemEdit = async () => {
     if (data.success) {
       shipmentModals.editItem = false;
       await loadShipmentItems();
-      scanMessage.value = 'Package updated successfully';
-      scanStatus.value = 'info';
-      setTimeout(() => {
-        scanMessage.value = '';
-      }, 3000);
+      showToast('Package updated successfully', 'success');
+    } else {
+      showToast(data.error || 'Failed to update package', 'error');
     }
   } catch (error) {
     console.error('Failed to update item:', error);
-    scanMessage.value = 'Failed to update package';
-    scanStatus.value = 'error';
+    showToast('Failed to update package', 'error');
   }
 };
 
 // Open add item modal
 const openAddShipmentItem = () => {
   if (!activeShipmentLogId.value) {
-    scanMessage.value = 'Please select a shipment log first';
-    scanStatus.value = 'error';
-    setTimeout(() => {
-      scanMessage.value = '';
-    }, 3000);
+    showToast('Please select a shipment log first', 'warning');
     return;
   }
 
@@ -6139,16 +6220,13 @@ const confirmAddShipmentItem = async () => {
       shipmentModals.addItem = false;
       await loadShipmentItems();
       await loadShipmentLogs(); // Refresh card counts
-      scanMessage.value = 'Package added successfully';
-      scanStatus.value = 'success';
-      setTimeout(() => {
-        scanMessage.value = '';
-      }, 3000);
+      showToast('Package added successfully', 'success');
+    } else {
+      showToast(data.error || 'Failed to add package', 'error');
     }
   } catch (error) {
     console.error('Failed to add item:', error);
-    scanMessage.value = 'Failed to add package';
-    scanStatus.value = 'error';
+    showToast('Failed to add package', 'error');
   }
 };
 
@@ -6178,16 +6256,13 @@ const confirmItemMove = async () => {
       shipmentModals.moveItem = false;
       await loadShipmentItems();
       await loadShipmentLogs(); // Refresh card counts
-      scanMessage.value = 'Package moved successfully';
-      scanStatus.value = 'info';
-      setTimeout(() => {
-        scanMessage.value = '';
-      }, 3000);
+      showToast('Package moved successfully', 'success');
+    } else {
+      showToast(data.error || 'Failed to move package', 'error');
     }
   } catch (error) {
     console.error('Failed to move item:', error);
-    scanMessage.value = 'Failed to move package';
-    scanStatus.value = 'error';
+    showToast('Failed to move package', 'error');
   }
 };
 
@@ -6206,16 +6281,13 @@ const deleteShipmentItem = async (item) => {
     if (data.success) {
       await loadShipmentItems();
       await loadShipmentLogs(); // Refresh card counts
-      scanMessage.value = 'Package deleted successfully';
-      scanStatus.value = 'info';
-      setTimeout(() => {
-        scanMessage.value = '';
-      }, 3000);
+      showToast('Package deleted successfully', 'success');
+    } else {
+      showToast(data.error || 'Failed to delete package', 'error');
     }
   } catch (error) {
     console.error('Failed to delete item:', error);
-    scanMessage.value = 'Failed to delete package';
-    scanStatus.value = 'error';
+    showToast('Failed to delete package', 'error');
   }
 };
 
@@ -6231,16 +6303,13 @@ const updateShipmentItemStatus = async (itemId, newStatus) => {
     const data = await response.json();
     if (data.success) {
       await loadShipmentItems();
-      scanMessage.value = 'Status updated successfully';
-      scanStatus.value = 'info';
-      setTimeout(() => {
-        scanMessage.value = '';
-      }, 2000);
+      showToast('Status updated successfully', 'success');
+    } else {
+      showToast(data.error || 'Failed to update status', 'error');
     }
   } catch (error) {
     console.error('Failed to update status:', error);
-    scanMessage.value = 'Failed to update status';
-    scanStatus.value = 'error';
+    showToast('Failed to update status', 'error');
   }
 };
 
@@ -6347,17 +6416,16 @@ const submitRolePermissionSettings = async () => {
 
     if (data.success) {
       console.log(`Permissions saved for ${selectedRoleForPermissions.value}. ${data.usersUpdated} users updated.`);
-      // Show success message
-      alert(`Role permissions updated successfully! ${data.usersUpdated} user(s) have been updated with the new permissions.`);
+      showToast(`Role permissions updated successfully! ${data.usersUpdated} user(s) updated.`, 'success');
       rolePermissionModal.value = false;
       // Refresh users list to reflect updated permissions
       fetchEmployees();
     } else {
-      alert('Error saving permissions: ' + (data.error || 'Unknown error'));
+      showToast('Error saving permissions: ' + (data.error || 'Unknown error'), 'error');
     }
   } catch (error) {
     console.error('Error saving role permissions:', error);
-    alert('Error saving permissions. Please try again.');
+    showToast('Error saving permissions. Please try again.', 'error');
   } finally {
     savingRolePermissions.value = false;
   }
@@ -6385,7 +6453,7 @@ const duplicateRoleCard = (role) => {
   // This allows creating a custom role based on an existing one
   openRolePermissionModal(role);
   // TODO: In the future, this could create a new custom role entry
-  alert(`Duplicating ${role === 'full_control' ? 'Administrator' : role === 'editor' ? 'Manager' : 'Users'} role settings. You can now modify the permissions.`);
+  showToast(`Duplicating ${role === 'full_control' ? 'Administrator' : role === 'editor' ? 'Manager' : 'Users'} role settings. Modify permissions as needed.`, 'info');
 };
 
 const filteredEmployees = computed(() => {
@@ -6478,12 +6546,13 @@ const createRole = async () => {
       roleForm.name = '';
       roleForm.description = '';
       await loadRoles();
+      showToast('Role created successfully', 'success');
     } else {
-      alert(data.error || 'Failed to create role');
+      showToast(data.error || 'Failed to create role', 'error');
     }
   } catch (error) {
     console.error('Failed to create role:', error);
-    alert('Failed to create role');
+    showToast('Failed to create role', 'error');
   }
 };
 
@@ -6511,12 +6580,13 @@ const updateRole = async () => {
     if (data.success) {
       roleModals.edit = false;
       await loadRoles();
+      showToast('Role updated successfully', 'success');
     } else {
-      alert(data.error || 'Failed to update role');
+      showToast(data.error || 'Failed to update role', 'error');
     }
   } catch (error) {
     console.error('Failed to update role:', error);
-    alert('Failed to update role');
+    showToast('Failed to update role', 'error');
   }
 };
 
@@ -6540,12 +6610,13 @@ const deleteRole = async () => {
       roleModals.delete = false;
       roleDeleteTarget.value = null;
       await loadRoles();
+      showToast('Role deleted successfully', 'success');
     } else {
-      alert(data.error || 'Failed to delete role');
+      showToast(data.error || 'Failed to delete role', 'error');
     }
   } catch (error) {
     console.error('Failed to delete role:', error);
-    alert('Failed to delete role');
+    showToast('Failed to delete role', 'error');
   }
 };
 
@@ -6573,12 +6644,13 @@ const duplicateRole = async () => {
       roleDuplicateTarget.value = null;
       duplicateRoleName.value = '';
       await loadRoles();
+      showToast('Role duplicated successfully', 'success');
     } else {
-      alert(data.error || 'Failed to duplicate role');
+      showToast(data.error || 'Failed to duplicate role', 'error');
     }
   } catch (error) {
     console.error('Failed to duplicate role:', error);
-    alert('Failed to duplicate role');
+    showToast('Failed to duplicate role', 'error');
   }
 };
 
@@ -6615,12 +6687,13 @@ const saveRolePermissions = async () => {
       rolePermissionsTarget.value = null;
       selectedPermissions.value = [];
       await loadRoles();
+      showToast('Permissions saved successfully', 'success');
     } else {
-      alert(data.error || 'Failed to save permissions');
+      showToast(data.error || 'Failed to save permissions', 'error');
     }
   } catch (error) {
     console.error('Failed to save permissions:', error);
-    alert('Failed to save permissions');
+    showToast('Failed to save permissions', 'error');
   }
 };
 
@@ -6657,12 +6730,13 @@ const activateUser = async (userId) => {
     const data = await response.json();
     if (data.success) {
       await refreshUsers();
+      showToast('User activated successfully', 'success');
     } else {
-      alert(data.error || 'Failed to activate user');
+      showToast(data.error || 'Failed to activate user', 'error');
     }
   } catch (error) {
     console.error('Failed to activate user:', error);
-    alert('Failed to activate user');
+    showToast('Failed to activate user', 'error');
   }
 };
 
@@ -6676,12 +6750,13 @@ const deactivateUser = async (userId) => {
     const data = await response.json();
     if (data.success) {
       await refreshUsers();
+      showToast('User deactivated successfully', 'success');
     } else {
-      alert(data.error || 'Failed to deactivate user');
+      showToast(data.error || 'Failed to deactivate user', 'error');
     }
   } catch (error) {
     console.error('Failed to deactivate user:', error);
-    alert('Failed to deactivate user');
+    showToast('Failed to deactivate user', 'error');
   }
 };
 
@@ -6724,13 +6799,13 @@ const resetUserPassword = async () => {
       passwordResetModal.value = false;
       passwordResetTarget.value = null;
       newPassword.value = '';
-      alert('Password reset successfully');
+      showToast('Password reset successfully', 'success');
     } else {
-      alert(data.error || 'Failed to reset password');
+      showToast(data.error || 'Failed to reset password', 'error');
     }
   } catch (error) {
     console.error('Failed to reset password:', error);
-    alert('Failed to reset password');
+    showToast('Failed to reset password', 'error');
   }
 };
 
@@ -6742,11 +6817,14 @@ const saveEditUser = confirmUserEdit;
 const toggleUserLock = (user) => {
   const userToUpdate = employees.find((e) => e.id === user.id);
   if (userToUpdate) {
-    userToUpdate.active = userToUpdate.active === 1 ? 0 : 1;
+    const wasActive = userToUpdate.active === 1;
+    userToUpdate.active = wasActive ? 0 : 1;
     // If toggling the current user, sign them out if deactivating
     if (currentUser.value?.id === user.id && userToUpdate.active === 0) {
-      alert('Your account has been deactivated. You will be signed out.');
-      signOut();
+      showToast('Your account has been deactivated. You will be signed out.', 'warning');
+      setTimeout(() => signOut(), 2000);
+    } else {
+      showToast(`User ${wasActive ? 'deactivated' : 'activated'} successfully`, 'success');
     }
   }
 };
@@ -6792,14 +6870,14 @@ const saveApiConfig = async () => {
     const data = await response.json();
     if (data.success) {
       isEditingApiConfig.value = false;
-      alert('API configuration saved successfully');
+      showToast('API configuration saved successfully', 'success');
       await loadApiConfig();
     } else {
-      alert(data.error || 'Failed to save API configuration');
+      showToast(data.error || 'Failed to save API configuration', 'error');
     }
   } catch (error) {
     console.error('Failed to save API config:', error);
-    alert('Failed to save API configuration');
+    showToast('Failed to save API configuration', 'error');
   }
 };
 
@@ -6844,15 +6922,15 @@ const triggerApiSync = async () => {
 
     const data = await response.json();
     if (data.success) {
-      alert(`Sync completed: ${data.summary.created} created, ${data.summary.updated} updated`);
+      showToast(`Sync completed: ${data.summary.created} created, ${data.summary.updated} updated`, 'success');
       await loadSyncLogs();
       await loadApiConfig();
     } else {
-      alert(data.error || 'Sync failed');
+      showToast(data.error || 'Sync failed', 'error');
     }
   } catch (error) {
     console.error('Failed to sync:', error);
-    alert('Sync failed');
+    showToast('Sync failed', 'error');
   }
 };
 
@@ -6868,12 +6946,13 @@ const toggleMaintenanceModeFunc = async () => {
     const data = await response.json();
     if (data.success) {
       maintenanceMode.value = data.maintenanceMode;
+      showToast(`Maintenance mode ${maintenanceMode.value ? 'enabled' : 'disabled'}`, 'success');
     } else {
-      alert(data.error || 'Failed to toggle maintenance mode');
+      showToast(data.error || 'Failed to toggle maintenance mode', 'error');
     }
   } catch (error) {
     console.error('Failed to toggle maintenance mode:', error);
-    alert('Failed to toggle maintenance mode');
+    showToast('Failed to toggle maintenance mode', 'error');
   }
 };
 
