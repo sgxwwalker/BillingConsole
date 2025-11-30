@@ -11,7 +11,7 @@ import { parse } from 'csv-parse/sync';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-import {
+import db, {
   initDatabase,
   seedDatabase,
   userQueries,
@@ -550,6 +550,7 @@ app.get('/api/orders', (req, res) => {
       status: order.status,
       merchant: order.merchant,
       method: order.method,
+      currency: order.currency || 'JMD',
       updatedBy: order.updated_by,
     }));
     res.json({ success: true, orders });
@@ -1375,6 +1376,78 @@ app.patch('/api/billing/status/:id', (req, res) => {
   } catch (error) {
     console.error('Error updating billing status:', error);
     res.status(500).json({ error: 'Failed to update billing status' });
+  }
+});
+
+// Get Daily Summary data from Billing Console transactions
+app.get('/api/daily-summary', (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    // Build the query to get collections from shipment_items
+    let query = `
+      SELECT
+        date(collection_date) as date,
+        payment_method,
+        SUM(amount_paid) as total_amount,
+        collected_by
+      FROM shipment_items
+      WHERE collection_date IS NOT NULL
+        AND payment_method IS NOT NULL
+        AND amount_paid > 0
+    `;
+
+    const params = [];
+
+    if (startDate) {
+      query += ` AND date(collection_date) >= ?`;
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      query += ` AND date(collection_date) <= ?`;
+      params.push(endDate);
+    }
+
+    query += ` GROUP BY date(collection_date), payment_method ORDER BY date(collection_date) DESC`;
+
+    const results = db.prepare(query).all(...params);
+
+    // Also get Credit Card orders from orders table (with currency)
+    let ordersQuery = `
+      SELECT
+        date as date,
+        method as payment_method,
+        currency,
+        SUM(cost) as total_amount,
+        updated_by as collected_by
+      FROM orders
+      WHERE method = 'Credit Card'
+    `;
+
+    const ordersParams = [];
+
+    if (startDate) {
+      ordersQuery += ` AND date >= ?`;
+      ordersParams.push(startDate);
+    }
+
+    if (endDate) {
+      ordersQuery += ` AND date <= ?`;
+      ordersParams.push(endDate);
+    }
+
+    ordersQuery += ` GROUP BY date, currency ORDER BY date DESC`;
+
+    const orderResults = db.prepare(ordersQuery).all(...ordersParams);
+
+    res.json({
+      billingTransactions: results,
+      creditCardOrders: orderResults
+    });
+  } catch (error) {
+    console.error('Error fetching daily summary:', error);
+    res.status(500).json({ error: 'Failed to fetch daily summary' });
   }
 });
 

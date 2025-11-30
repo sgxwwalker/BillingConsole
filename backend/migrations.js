@@ -10,6 +10,12 @@ export function runMigrations() {
     // Add billing columns to shipment_items table (Migration 001)
     addBillingColumnsToShipmentItems();
 
+    // Add currency column to orders table (Migration 002)
+    addCurrencyColumnToOrders();
+
+    // Add user profile columns (Migration 003)
+    addUserProfileColumns();
+
     console.log('All migrations completed');
   } catch (error) {
     console.error('Error running migrations:', error);
@@ -85,5 +91,53 @@ function addBillingColumnsToShipmentItems() {
     }
   } catch (error) {
     console.error('  Error adding billing columns:', error.message);
+  }
+}
+
+/**
+ * Migration 002: Add currency column to orders table
+ */
+function addCurrencyColumnToOrders() {
+  try {
+    // Check if currency column already exists
+    const tableInfo = db.prepare("PRAGMA table_info(orders)").all();
+    const columnNames = tableInfo.map(col => col.name);
+
+    if (!columnNames.includes('currency')) {
+      db.exec(`ALTER TABLE orders ADD COLUMN currency TEXT DEFAULT 'JMD'`);
+      console.log('  Added currency column to orders table');
+    } else {
+      console.log('  Currency column already exists in orders');
+    }
+  } catch (error) {
+    console.error('  Error adding currency column:', error.message);
+  }
+}
+
+/**
+ * Migration 003: Add user profile columns to users table
+ */
+function addUserProfileColumns() {
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(users)").all();
+    const columnNames = tableInfo.map(col => col.name);
+
+    const profileColumns = ['phone', 'job_title', 'department'];
+    let addedColumns = [];
+
+    for (const column of profileColumns) {
+      if (!columnNames.includes(column)) {
+        db.exec(`ALTER TABLE users ADD COLUMN ${column} TEXT`);
+        addedColumns.push(column);
+      }
+    }
+
+    if (addedColumns.length > 0) {
+      console.log(`  Added ${addedColumns.length} profile columns to users:`, addedColumns.join(', '));
+    } else {
+      console.log('  Profile columns already exist in users');
+    }
+  } catch (error) {
+    console.error('  Error adding profile columns:', error.message);
   }
 }

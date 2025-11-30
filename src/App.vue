@@ -76,7 +76,6 @@
         </div>
         <div class="profile-menu" v-if="profileMenuOpen">
           <button type="button" @click="goTo('profile')">Profile</button>
-          <button type="button" @click="goTo('settings')">Settings</button>
           <button type="button" @click="signOut">Sign Out</button>
         </div>
       </div>
@@ -374,9 +373,30 @@
           <div>
             <p class="eyebrow">Daily summary</p>
             <h2>Daily Check</h2>
-            <p class="muted">Breakdown of collected amounts and who recorded them.</p>
+            <p class="muted">Breakdown of collected amounts from Billing Console transactions.</p>
           </div>
-          <div style="display: flex; gap: 12px; align-items: center;">
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <!-- Period Filter Buttons -->
+            <div style="display: flex; gap: 6px;">
+              <button
+                v-for="period in [{value: 'today', label: 'Today'}, {value: '7days', label: '7 Days'}, {value: '1month', label: '1 Month'}, {value: '90days', label: '90 Days'}]"
+                :key="period.value"
+                @click="dailySummaryPeriod = period.value; dailySummaryDateFilter = '';"
+                :style="{
+                  padding: '8px 14px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  background: dailySummaryPeriod === period.value && !dailySummaryDateFilter ? 'var(--sgx-blue)' : '#f3f4f6',
+                  color: dailySummaryPeriod === period.value && !dailySummaryDateFilter ? 'white' : '#6b7280',
+                  transition: 'all 0.2s ease'
+                }"
+              >
+                {{ period.label }}
+              </button>
+            </div>
             <input
               v-model="dailySummaryDateFilter"
               type="date"
@@ -402,7 +422,7 @@
             <div class="card clickable-card" @click="activeDailyMethod = 'cash'" style="cursor: pointer; transition: all 0.2s ease;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Cash</h4>
-                <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                <span style="background: #dcfce7; color: #166534; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
                   Cash
                 </span>
               </div>
@@ -411,7 +431,7 @@
                 {{ formatCurrency(dailyMethodTotals.cash) }}
               </p>
               <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
-                {{ dailySummaryDateFilter ? 'For selected date' : 'Total collected' }}
+                {{ dailySummaryDateFilter ? 'For selected date' : dailySummaryPeriod === 'today' ? 'Today' : dailySummaryPeriod === '7days' ? 'Last 7 days' : dailySummaryPeriod === '1month' ? 'Last month' : 'Last 90 days' }}
               </p>
               <p style="font-size: 13px; color: #6b7280;">
                 Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
@@ -422,7 +442,7 @@
             <div class="card clickable-card" @click="activeDailyMethod = 'pos'" style="cursor: pointer; transition: all 0.2s ease;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">POS</h4>
-                <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                <span style="background: #dbeafe; color: #1e40af; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
                   POS
                 </span>
               </div>
@@ -431,7 +451,7 @@
                 {{ formatCurrency(dailyMethodTotals.pos) }}
               </p>
               <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
-                {{ dailySummaryDateFilter ? 'For selected date' : 'Total collected' }}
+                {{ dailySummaryDateFilter ? 'For selected date' : dailySummaryPeriod === 'today' ? 'Today' : dailySummaryPeriod === '7days' ? 'Last 7 days' : dailySummaryPeriod === '1month' ? 'Last month' : 'Last 90 days' }}
               </p>
               <p style="font-size: 13px; color: #6b7280;">
                 Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
@@ -442,7 +462,7 @@
             <div class="card clickable-card" @click="activeDailyMethod = 'transfer'" style="cursor: pointer; transition: all 0.2s ease;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Transfer</h4>
-                <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                <span style="background: #fef3c7; color: #92400e; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
                   Transfer
                 </span>
               </div>
@@ -451,27 +471,67 @@
                 {{ formatCurrency(dailyMethodTotals.transfer) }}
               </p>
               <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
-                {{ dailySummaryDateFilter ? 'For selected date' : 'Total collected' }}
+                {{ dailySummaryDateFilter ? 'For selected date' : dailySummaryPeriod === 'today' ? 'Today' : dailySummaryPeriod === '7days' ? 'Last 7 days' : dailySummaryPeriod === '1month' ? 'Last month' : 'Last 90 days' }}
               </p>
               <p style="font-size: 13px; color: #6b7280;">
                 Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
               </p>
             </div>
 
-            <!-- Credit Card Card -->
-            <div class="card clickable-card" @click="activeDailyMethod = 'creditCard'" style="cursor: pointer; transition: all 0.2s ease;">
+            <!-- Loyalty Card -->
+            <div class="card clickable-card" @click="activeDailyMethod = 'loyalty'" style="cursor: pointer; transition: all 0.2s ease;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Credit Card</h4>
-                <span style="background: #f3f4f6; color: #6b7280; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
-                  Credit
+                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Loyalty</h4>
+                <span style="background: #fae8ff; color: #86198f; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                  Loyalty
                 </span>
               </div>
               <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
               <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1; margin-bottom: 8px;">
-                {{ formatCurrency(dailyMethodTotals.creditCard) }}
+                {{ formatCurrency(dailyMethodTotals.loyalty) }}
               </p>
               <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
-                {{ dailySummaryDateFilter ? 'For selected date' : 'Total collected' }}
+                {{ dailySummaryDateFilter ? 'For selected date' : dailySummaryPeriod === 'today' ? 'Today' : dailySummaryPeriod === '7days' ? 'Last 7 days' : dailySummaryPeriod === '1month' ? 'Last month' : 'Last 90 days' }}
+              </p>
+              <p style="font-size: 13px; color: #6b7280;">
+                Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
+              </p>
+            </div>
+
+            <!-- Credit Card JMD -->
+            <div class="card clickable-card" @click="activeDailyMethod = 'creditCardJmd'" style="cursor: pointer; transition: all 0.2s ease;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Credit Card JMD</h4>
+                <span style="background: #e0e7ff; color: #3730a3; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                  JMD
+                </span>
+              </div>
+              <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+              <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1; margin-bottom: 8px;">
+                {{ formatCurrency(dailyMethodTotals.creditCardJmd) }}
+              </p>
+              <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
+                {{ dailySummaryDateFilter ? 'For selected date' : dailySummaryPeriod === 'today' ? 'Today' : dailySummaryPeriod === '7days' ? 'Last 7 days' : dailySummaryPeriod === '1month' ? 'Last month' : 'Last 90 days' }}
+              </p>
+              <p style="font-size: 13px; color: #6b7280;">
+                Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
+              </p>
+            </div>
+
+            <!-- Credit Card USD -->
+            <div class="card clickable-card" @click="activeDailyMethod = 'creditCardUsd'" style="cursor: pointer; transition: all 0.2s ease;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">Credit Card USD</h4>
+                <span style="background: #d1fae5; color: #065f46; fontSize: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px;">
+                  USD
+                </span>
+              </div>
+              <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+              <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1; margin-bottom: 8px;">
+                ${{ (dailyMethodTotals.creditCardUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} USD
+              </p>
+              <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
+                {{ dailySummaryDateFilter ? 'For selected date' : dailySummaryPeriod === 'today' ? 'Today' : dailySummaryPeriod === '7days' ? 'Last 7 days' : dailySummaryPeriod === '1month' ? 'Last month' : 'Last 90 days' }}
               </p>
               <p style="font-size: 13px; color: #6b7280;">
                 Click to view <span style="font-weight: 600; color: #374151;">breakdown</span>
@@ -484,7 +544,7 @@
         <div v-if="activeDailyMethod" class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main);">
-              {{ activeDailyMethod === 'cash' ? 'Cash' : activeDailyMethod === 'pos' ? 'POS' : activeDailyMethod === 'transfer' ? 'Transfer' : 'Credit Card' }} Breakdown
+              {{ activeDailyMethod === 'cash' ? 'Cash' : activeDailyMethod === 'pos' ? 'POS' : activeDailyMethod === 'transfer' ? 'Transfer' : activeDailyMethod === 'loyalty' ? 'Loyalty' : activeDailyMethod === 'creditCardJmd' ? 'Credit Card JMD' : 'Credit Card USD' }} Breakdown
             </h3>
             <button class="pill ghost" type="button" @click="activeDailyMethod = null">← Back to Overview</button>
           </div>
@@ -512,32 +572,34 @@
           </div>
 
           <div class="table-shell compact">
-            <table v-if="activeDailyMethod !== 'creditCard'">
+            <!-- Table for Cash, POS, Transfer, Loyalty (billing transactions) -->
+            <table v-if="['cash', 'pos', 'transfer', 'loyalty'].includes(activeDailyMethod)">
               <thead>
                 <tr>
                   <th>Date</th>
                   <th>Amount</th>
-                  <th>Recorded by</th>
+                  <th>Collected by</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="!filteredDailySummary.length" class="empty">
-                  <td colspan="3">No collections found.</td>
+                <tr v-if="!filteredBillingBreakdown.length" class="empty">
+                  <td colspan="3">No collections found for selected period.</td>
                 </tr>
-                <tr v-for="row in filteredDailySummary" :key="row.date">
-                  <td><strong>{{ row.date }}</strong></td>
-                  <td style="font-size: 16px; font-weight: 600; color: #10b981;">{{ formatCurrency(row[activeDailyMethod]) }}</td>
-                  <td>{{ row.users.join(', ') || '—' }}</td>
+                <tr v-for="(tx, idx) in filteredBillingBreakdown" :key="idx">
+                  <td><strong>{{ tx.date }}</strong></td>
+                  <td style="font-size: 16px; font-weight: 600; color: #10b981;">{{ formatCurrency(tx.total_amount) }}</td>
+                  <td>{{ tx.collected_by || '—' }}</td>
                 </tr>
-                <tr v-if="filteredDailySummary.length > 0" style="background: #f8fafb; font-weight: 700;">
+                <tr v-if="filteredBillingBreakdown.length > 0" style="background: #f8fafb; font-weight: 700;">
                   <td>Total</td>
                   <td style="font-size: 18px; color: #10b981;">
-                    {{ formatCurrency(filteredDailySummary.reduce((sum, row) => sum + row[activeDailyMethod], 0)) }}
+                    {{ formatCurrency(filteredBillingBreakdown.reduce((sum, tx) => sum + (tx.total_amount || 0), 0)) }}
                   </td>
                   <td>—</td>
                 </tr>
               </tbody>
             </table>
+            <!-- Table for Credit Card JMD/USD (SGX orders) -->
             <table v-else>
               <thead>
                 <tr>
@@ -548,14 +610,23 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="!filteredCreditCardOrders.length" class="empty">
+                <tr v-if="!filteredCreditCardBreakdown.length" class="empty">
                   <td colspan="4">No credit card orders found for selected period.</td>
                 </tr>
-                <tr v-for="order in filteredCreditCardOrders" :key="order.id">
+                <tr v-for="order in filteredCreditCardBreakdown" :key="order.id">
                   <td><strong>{{ order.date }}</strong></td>
                   <td>{{ order.customer_name || order.customerName || '—' }}</td>
-                  <td style="font-size: 16px; font-weight: 600; color: #10b981;">{{ formatCurrency(order.cost) }}</td>
-                  <td><span style="background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">{{ order.currency || 'JMD' }}</span></td>
+                  <td style="font-size: 16px; font-weight: 600; color: #10b981;">
+                    {{ activeDailyMethod === 'creditCardUsd' ? '$' + (order.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD' : formatCurrency(order.total_amount) }}
+                  </td>
+                  <td><span :style="{ background: order.currency === 'USD' ? '#d1fae5' : '#e0f2fe', color: order.currency === 'USD' ? '#065f46' : '#0369a1', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600' }">{{ order.currency || 'JMD' }}</span></td>
+                </tr>
+                <tr v-if="filteredCreditCardBreakdown.length > 0" style="background: #f8fafb; font-weight: 700;">
+                  <td colspan="2">Total</td>
+                  <td style="font-size: 18px; color: #10b981;">
+                    {{ activeDailyMethod === 'creditCardUsd' ? '$' + filteredCreditCardBreakdown.reduce((sum, o) => sum + (o.total_amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD' : formatCurrency(filteredCreditCardBreakdown.reduce((sum, o) => sum + (o.total_amount || 0), 0)) }}
+                  </td>
+                  <td>—</td>
                 </tr>
               </tbody>
             </table>
@@ -740,36 +811,137 @@
         </div>
       </section>
 
-      <section v-if="currentPage === 'profile'" class="panel" id="profile">
+      <section v-if="currentPage === 'profile'" class="panel full-page" id="profile">
         <div class="panel-head">
           <div>
             <p class="eyebrow">Profile</p>
-            <h2>Employee profile</h2>
-            <p class="muted">Update your photo, email, and password.</p>
+            <h2>Employee Profile</h2>
+            <p class="muted">Manage your personal information, photo, and security settings.</p>
           </div>
         </div>
-        <div class="grid two-cols">
-          <div class="card">
-            <div class="profile-photo-preview">
-              <img :src="profileForm.photo || placeholderPhoto" alt="profile preview" />
+
+        <div class="profile-layout">
+          <!-- Left Column: Photo and Quick Info -->
+          <div class="profile-sidebar">
+            <div class="card profile-photo-card">
+              <div class="profile-photo-large">
+                <img :src="profilePhotoPreview || profileForm.photo || placeholderPhoto" alt="Profile photo" />
+                <div class="photo-overlay" @click="triggerPhotoUpload">
+                  <span>Change Photo</span>
+                </div>
+              </div>
+              <input
+                type="file"
+                ref="photoInput"
+                @change="handlePhotoSelect"
+                accept="image/*"
+                style="display: none"
+              />
+              <div class="photo-actions">
+                <button class="pill small" type="button" @click="triggerPhotoUpload">Upload Photo</button>
+                <button class="pill small ghost" type="button" @click="removePhoto" v-if="profileForm.photo">Remove</button>
+              </div>
+              <p class="muted small" style="text-align: center; margin-top: 8px;">JPG, PNG or GIF. Max 5MB.</p>
             </div>
-            <label>
-              <span class="input-label">Photo URL</span>
-              <input v-model="profileForm.photo" type="text" placeholder="https://..." />
-            </label>
+
+            <div class="card profile-info-card">
+              <div class="profile-info-header">
+                <h3>{{ currentUser?.name || 'User' }}</h3>
+                <p class="muted">{{ profileForm.jobTitle || 'Team Member' }}</p>
+              </div>
+              <div class="profile-info-details">
+                <div class="info-row">
+                  <span class="info-label">Email</span>
+                  <span class="info-value">{{ profileForm.email || '-' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Department</span>
+                  <span class="info-value">{{ profileForm.department || '-' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Phone</span>
+                  <span class="info-value">{{ profileForm.phone || '-' }}</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="card">
-            <div class="form-grid">
-              <label>
-                <span class="input-label">Email</span>
-                <input v-model="profileForm.email" type="email" placeholder="you@sgxpress.com" />
-              </label>
-              <label>
-                <span class="input-label">Password</span>
-                <input v-model="profileForm.password" type="password" placeholder="New password" />
-              </label>
+
+          <!-- Right Column: Edit Forms -->
+          <div class="profile-main">
+            <!-- Personal Information Card -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Personal Information</h3>
+                <p class="muted">Update your personal details.</p>
+              </div>
+              <div class="form-grid two-cols">
+                <label>
+                  <span class="input-label">Full Name</span>
+                  <input v-model="profileForm.name" type="text" placeholder="Your full name" />
+                </label>
+                <label>
+                  <span class="input-label">Email Address</span>
+                  <input v-model="profileForm.email" type="email" placeholder="you@sgxpress.com" />
+                </label>
+                <label>
+                  <span class="input-label">Phone Number</span>
+                  <input v-model="profileForm.phone" type="tel" placeholder="+1 (876) 000-0000" />
+                </label>
+                <label>
+                  <span class="input-label">Job Title</span>
+                  <input v-model="profileForm.jobTitle" type="text" placeholder="Your job title" />
+                </label>
+                <label class="full-width">
+                  <span class="input-label">Department</span>
+                  <select v-model="profileForm.department">
+                    <option value="">Select department</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Customer Service">Customer Service</option>
+                    <option value="Logistics">Logistics</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Management">Management</option>
+                    <option value="IT">IT</option>
+                  </select>
+                </label>
+              </div>
+              <div class="card-actions">
+                <button class="pill" type="button" @click="saveProfile" :disabled="profileSaving">
+                  {{ profileSaving ? 'Saving...' : 'Save Changes' }}
+                </button>
+                <span class="success-message" v-if="profileSaveSuccess">Profile updated successfully</span>
+              </div>
             </div>
-            <button class="pill" type="button" @click="saveProfile">Save profile</button>
+
+            <!-- Security Card -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Security</h3>
+                <p class="muted">Update your password to keep your account secure.</p>
+              </div>
+              <div class="form-grid">
+                <label>
+                  <span class="input-label">Current Password</span>
+                  <input v-model="passwordForm.currentPassword" type="password" placeholder="Enter current password" />
+                </label>
+                <div class="form-grid two-cols">
+                  <label>
+                    <span class="input-label">New Password</span>
+                    <input v-model="passwordForm.newPassword" type="password" placeholder="Enter new password" />
+                  </label>
+                  <label>
+                    <span class="input-label">Confirm New Password</span>
+                    <input v-model="passwordForm.confirmPassword" type="password" placeholder="Confirm new password" />
+                  </label>
+                </div>
+              </div>
+              <div class="card-actions">
+                <button class="pill" type="button" @click="changePassword" :disabled="passwordChanging">
+                  {{ passwordChanging ? 'Updating...' : 'Update Password' }}
+                </button>
+                <span class="error-message" v-if="passwordError">{{ passwordError }}</span>
+                <span class="success-message" v-if="passwordSuccess">Password updated successfully</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -3167,7 +3339,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, nextTick } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, nextTick, watch } from "vue";
 import logo from "./logo-icon.png";
 import homeIcon from "./assets/home.png";
 import editIcon from "./assets/edit.png";
@@ -3497,14 +3669,36 @@ const loginForm = reactive({
   rememberMe: initialCreds.rememberMe || false
 });
 const loginError = ref("");
-const profileForm = reactive({ email: "", password: "", photo: "" });
+const profileForm = reactive({
+  name: "",
+  email: "",
+  phone: "",
+  jobTitle: "",
+  department: "",
+  photo: ""
+});
+const passwordForm = reactive({
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: ""
+});
+const profilePhotoPreview = ref(null);
+const profilePhotoFile = ref(null);
+const profileSaving = ref(false);
+const profileSaveSuccess = ref(false);
+const passwordChanging = ref(false);
+const passwordError = ref("");
+const passwordSuccess = ref(false);
+const photoInput = ref(null);
 const placeholderPhoto = "https://via.placeholder.com/120x120.png?text=Photo";
 const settings = reactive({ notifyEmail: true, notifySms: false, notifyDesktop: true });
 const activeSettingsTab = ref('roles');
-const activeDailyMethod = ref(null); // null means show all, or 'cash', 'pos', 'transfer', 'creditCard'
+const activeDailyMethod = ref(null); // null means show all, or 'cash', 'pos', 'transfer', 'loyalty', 'creditCardJmd', 'creditCardUsd'
 const dailySummaryDateFilter = ref('');
 const dailyTimeFilter = ref('today'); // 'today', '7days', '1month', '90days', 'year'
+const dailySummaryPeriod = ref('today'); // 'today', '7days', '1month', '90days'
 const collectionLog = ref([]);
+const dailySummaryData = ref({ billingTransactions: [], creditCardOrders: [] });
 const statusOptions = ["Ready for Pickup", "Processing at Customs", "Processing in Office", "In Transit"];
 const ordersSearch = ref("");
 const orderStatusOptions = ["Ordered", "Received"];
@@ -4078,16 +4272,73 @@ const filteredDailySummary = computed(() => {
   return results;
 });
 
-// Calculate totals for each payment method
+// Calculate totals for each payment method from backend data
 const dailyMethodTotals = computed(() => {
-  const data = dailySummaryDateFilter.value ? filteredDailySummary.value : dailySummary.value;
-
-  return {
-    cash: data.reduce((sum, row) => sum + row.cash, 0),
-    pos: data.reduce((sum, row) => sum + row.pos, 0),
-    transfer: data.reduce((sum, row) => sum + row.transfer, 0),
-    creditCard: data.reduce((sum, row) => sum + row.creditCard, 0),
+  const totals = {
+    cash: 0,
+    pos: 0,
+    transfer: 0,
+    loyalty: 0,
+    creditCardJmd: 0,
+    creditCardUsd: 0,
   };
+
+  // Sum billing transactions (Cash, POS, Transfer, Loyalty)
+  dailySummaryData.value.billingTransactions?.forEach(tx => {
+    const method = tx.payment_method?.toLowerCase();
+    const amount = tx.total_amount || 0;
+
+    if (method === 'cash') totals.cash += amount;
+    else if (method === 'pos') totals.pos += amount;
+    else if (method === 'transfer') totals.transfer += amount;
+    else if (method === 'loyalty') totals.loyalty += amount;
+  });
+
+  // Sum credit card orders by currency
+  dailySummaryData.value.creditCardOrders?.forEach(order => {
+    const amount = order.total_amount || 0;
+    if (order.currency === 'USD') {
+      totals.creditCardUsd += amount;
+    } else {
+      totals.creditCardJmd += amount;
+    }
+  });
+
+  return totals;
+});
+
+// Filtered billing breakdown for Cash, POS, Transfer, Loyalty
+const filteredBillingBreakdown = computed(() => {
+  if (!activeDailyMethod.value || !['cash', 'pos', 'transfer', 'loyalty'].includes(activeDailyMethod.value)) {
+    return [];
+  }
+
+  // Map method key to payment method string
+  const methodMap = {
+    cash: 'Cash',
+    pos: 'POS',
+    transfer: 'Transfer',
+    loyalty: 'Loyalty'
+  };
+
+  const methodName = methodMap[activeDailyMethod.value];
+
+  return (dailySummaryData.value.billingTransactions || [])
+    .filter(tx => tx.payment_method?.toLowerCase() === methodName.toLowerCase())
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+});
+
+// Filtered credit card breakdown for Credit Card JMD/USD
+const filteredCreditCardBreakdown = computed(() => {
+  if (!activeDailyMethod.value || !['creditCardJmd', 'creditCardUsd'].includes(activeDailyMethod.value)) {
+    return [];
+  }
+
+  const currency = activeDailyMethod.value === 'creditCardUsd' ? 'USD' : 'JMD';
+
+  return (dailySummaryData.value.creditCardOrders || [])
+    .filter(order => (order.currency || 'JMD') === currency)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 });
 
 // Get individual transactions (for Transactions table)
@@ -4760,10 +5011,11 @@ const openOrderAdd = () => {
   orderAddForm.status = "Ordered";
   orderAddForm.merchant = "";
   orderAddForm.method = "Credit Card";
+  orderAddForm.currency = "JMD";
   orderModals.add = true;
 };
 
-const confirmOrderAdd = () => {
+const confirmOrderAdd = async () => {
   if (!currentUser.value) return;
   const newOrder = {
     id: `ORD-${Date.now()}`,
@@ -4774,9 +5026,29 @@ const confirmOrderAdd = () => {
     status: orderAddForm.status,
     merchant: orderAddForm.merchant,
     method: orderAddForm.method,
+    currency: orderAddForm.currency,
     updatedBy: currentUser.value.name,
   };
-  orders.value.push(newOrder);
+
+  try {
+    const response = await fetch('http://localhost:4000/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newOrder),
+    });
+    if (response.ok) {
+      const result = await response.json();
+      // Backend returns { success: true, order: {...} }
+      // But the order from backend has snake_case, use our newOrder which has correct field names
+      orders.value.push(newOrder);
+      loadDailySummary(); // Refresh daily summary to update Credit Card cards
+    } else {
+      orders.value.push(newOrder); // Fallback to local
+    }
+  } catch (error) {
+    console.error('Error saving order:', error);
+    orders.value.push(newOrder); // Fallback to local
+  }
   orderModals.add = false;
 };
 
@@ -4789,10 +5061,11 @@ const openOrderEdit = (order) => {
   orderEditForm.status = order.status;
   orderEditForm.merchant = order.merchant;
   orderEditForm.method = order.method;
+  orderEditForm.currency = order.currency || 'JMD';
   orderModals.edit = true;
 };
 
-const confirmOrderEdit = () => {
+const confirmOrderEdit = async () => {
   if (!currentUser.value) return;
   const order = orders.value.find((o) => o.id === orderEditForm.id);
   if (order) {
@@ -4803,7 +5076,19 @@ const confirmOrderEdit = () => {
     order.status = orderEditForm.status;
     order.merchant = orderEditForm.merchant;
     order.method = orderEditForm.method;
+    order.currency = orderEditForm.currency;
     order.updatedBy = currentUser.value.name;
+
+    try {
+      await fetch(`http://localhost:4000/api/orders/${order.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      });
+      loadDailySummary(); // Refresh daily summary to update Credit Card cards
+    } catch (error) {
+      console.error('Error updating order:', error);
+    }
   }
   orderModals.edit = false;
 };
@@ -5157,9 +5442,13 @@ const login = () => {
   }
 
   currentUser.value = { ...employee };
-  profileForm.email = employee.email;
-  profileForm.photo = employee.photo;
-  profileForm.password = employee.password;
+  // Populate profile form with user data
+  profileForm.name = employee.name || "";
+  profileForm.email = employee.email || "";
+  profileForm.phone = employee.phone || "";
+  profileForm.jobTitle = employee.jobTitle || employee.job_title || "";
+  profileForm.department = employee.department || "";
+  profileForm.photo = employee.photo || "";
   currentPage.value = allowedPages.value.includes("dashboard") ? "dashboard" : allowedPages.value[0];
   loginError.value = "";
 };
@@ -5181,16 +5470,153 @@ const goTo = (page) => {
   }
 };
 
-const saveProfile = () => {
+const triggerPhotoUpload = () => {
+  photoInput.value?.click();
+};
+
+const handlePhotoSelect = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Validate file size (5MB max)
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Photo must be less than 5MB');
+    return;
+  }
+
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file');
+    return;
+  }
+
+  profilePhotoFile.value = file;
+
+  // Create preview
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    profilePhotoPreview.value = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+const removePhoto = () => {
+  profilePhotoPreview.value = null;
+  profilePhotoFile.value = null;
+  profileForm.photo = "";
+};
+
+const saveProfile = async () => {
   if (!currentUser.value) return;
-  const idx = employees.findIndex((e) => e.id === currentUser.value.id);
-  if (idx !== -1) {
-    employees[idx].email = profileForm.email;
-    employees[idx].photo = profileForm.photo;
-    if (profileForm.password) {
-      employees[idx].password = profileForm.password;
+
+  profileSaving.value = true;
+  profileSaveSuccess.value = false;
+
+  try {
+    const formData = new FormData();
+    formData.append('name', profileForm.name);
+    formData.append('email', profileForm.email);
+    formData.append('phone', profileForm.phone || '');
+    formData.append('job_title', profileForm.jobTitle || '');
+    formData.append('department', profileForm.department || '');
+
+    if (profilePhotoFile.value) {
+      formData.append('photo', profilePhotoFile.value);
+    } else if (!profileForm.photo) {
+      formData.append('photo_url', '');
     }
-    currentUser.value = { ...employees[idx] };
+
+    const response = await fetch(`http://localhost:4000/api/users/${currentUser.value.id}/profile`, {
+      method: 'PUT',
+      body: formData
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      // Update local user data
+      const idx = employees.findIndex((e) => e.id === currentUser.value.id);
+      if (idx !== -1) {
+        employees[idx].name = profileForm.name;
+        employees[idx].email = profileForm.email;
+        employees[idx].phone = profileForm.phone;
+        employees[idx].jobTitle = profileForm.jobTitle;
+        employees[idx].department = profileForm.department;
+        if (result.user?.photo) {
+          employees[idx].photo = result.user.photo;
+          profileForm.photo = result.user.photo;
+        }
+      }
+      currentUser.value = { ...employees[idx] };
+      profilePhotoFile.value = null;
+      profilePhotoPreview.value = null;
+      profileSaveSuccess.value = true;
+      setTimeout(() => { profileSaveSuccess.value = false; }, 3000);
+    } else {
+      const error = await response.json();
+      alert(error.error || 'Failed to save profile');
+    }
+  } catch (error) {
+    console.error('Error saving profile:', error);
+    alert('Failed to save profile. Please try again.');
+  } finally {
+    profileSaving.value = false;
+  }
+};
+
+const changePassword = async () => {
+  if (!currentUser.value) return;
+
+  passwordError.value = "";
+  passwordSuccess.value = false;
+
+  // Validate passwords
+  if (!passwordForm.currentPassword) {
+    passwordError.value = "Current password is required";
+    return;
+  }
+
+  if (!passwordForm.newPassword) {
+    passwordError.value = "New password is required";
+    return;
+  }
+
+  if (passwordForm.newPassword.length < 6) {
+    passwordError.value = "New password must be at least 6 characters";
+    return;
+  }
+
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    passwordError.value = "New passwords do not match";
+    return;
+  }
+
+  passwordChanging.value = true;
+
+  try {
+    const response = await fetch(`http://localhost:4000/api/users/${currentUser.value.id}/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      })
+    });
+
+    if (response.ok) {
+      passwordSuccess.value = true;
+      passwordForm.currentPassword = "";
+      passwordForm.newPassword = "";
+      passwordForm.confirmPassword = "";
+      setTimeout(() => { passwordSuccess.value = false; }, 3000);
+    } else {
+      const error = await response.json();
+      passwordError.value = error.error || 'Failed to change password';
+    }
+  } catch (error) {
+    console.error('Error changing password:', error);
+    passwordError.value = 'Failed to change password. Please try again.';
+  } finally {
+    passwordChanging.value = false;
   }
 };
 
@@ -6425,12 +6851,79 @@ const loadPackagesFromBackend = async () => {
   }
 };
 
+// Load Daily Summary data from backend
+const loadDailySummary = async () => {
+  try {
+    // Calculate date range based on period
+    const today = new Date();
+    let startDate = '';
+    let endDate = today.toISOString().split('T')[0];
+
+    switch (dailySummaryPeriod.value) {
+      case 'today':
+        startDate = endDate;
+        break;
+      case '7days':
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        startDate = weekAgo.toISOString().split('T')[0];
+        break;
+      case '1month':
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        startDate = monthAgo.toISOString().split('T')[0];
+        break;
+      case '90days':
+        const ninetyDaysAgo = new Date(today);
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        startDate = ninetyDaysAgo.toISOString().split('T')[0];
+        break;
+    }
+
+    // If date filter is specified, use that instead
+    if (dailySummaryDateFilter.value) {
+      startDate = dailySummaryDateFilter.value;
+      endDate = dailySummaryDateFilter.value;
+    }
+
+    const response = await fetch(`http://localhost:4000/api/daily-summary?startDate=${startDate}&endDate=${endDate}`);
+    const data = await response.json();
+
+    if (data.billingTransactions || data.creditCardOrders) {
+      dailySummaryData.value = data;
+    }
+  } catch (error) {
+    console.error('Error loading daily summary:', error);
+  }
+};
+
+// Watch for period and date filter changes to reload daily summary
+watch([dailySummaryPeriod, dailySummaryDateFilter], () => {
+  loadDailySummary();
+}, { immediate: true });
+
+// Load orders from backend
+const loadOrders = async () => {
+  try {
+    const response = await fetch('http://localhost:4000/api/orders');
+    const data = await response.json();
+    if (data.success && Array.isArray(data.orders)) {
+      // Backend already maps field names
+      orders.value = data.orders;
+    }
+  } catch (error) {
+    console.error('Error loading orders:', error);
+  }
+};
+
 onMounted(() => {
   document.addEventListener("click", handleClickAway);
   document.addEventListener("click", handleClickOutside);
   loadPackagesFromBackend();
   loadBillingItems();
   loadBillingStats();
+  loadDailySummary();
+  loadOrders();
 });
 
 onBeforeUnmount(() => {
