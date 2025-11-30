@@ -90,144 +90,153 @@
             <h1>SGX Billing Console</h1>
           </div>
           <div class="top-actions">
-            <button class="pill ghost" type="button" @click="refreshData">Refresh Data</button>
-            <button
-              class="pill"
-              type="button"
-              @click="syncPackagesFromCourierDepot"
-              :disabled="isSyncing"
-              :style="{ opacity: isSyncing ? 0.6 : 1 }"
-            >
-              {{ isSyncing ? '⟳ Syncing...' : '↓ Sync from API' }}
-            </button>
+            <button class="pill ghost" type="button" @click="loadBillingItems">Refresh</button>
           </div>
         </header>
 
-        <!-- API Sync Status Message -->
-        <div v-if="apiSyncStatus" :style="{
-          padding: '12px 20px',
-          margin: '16px 0',
-          borderRadius: '8px',
-          background: apiSyncStatus.includes('✓') ? '#d1fae5' : apiSyncStatus.includes('✗') ? '#fee2e2' : '#dbeafe',
-          color: apiSyncStatus.includes('✓') ? '#065f46' : apiSyncStatus.includes('✗') ? '#991b1b' : '#1e40af',
-          fontSize: '14px',
-          fontWeight: '500',
-        }">
-          {{ apiSyncStatus }}
-        </div>
-
+        <!-- Billing Stats -->
         <div class="grid stats-split">
           <div class="card stat">
-            <p class="eyebrow">Ready today</p>
-            <h3>{{ stats.ready }}</h3>
+            <p class="eyebrow">Unbilled</p>
+            <h3>{{ billingStats.unbilled }}</h3>
           </div>
           <div class="card stat">
-            <p class="eyebrow">Collected today</p>
-            <h3>{{ stats.collectedToday }}</h3>
+            <p class="eyebrow">Open</p>
+            <h3>{{ billingStats.open }}</h3>
+          </div>
+          <div class="card stat">
+            <p class="eyebrow">Closed Today</p>
+            <h3>{{ billingStats.closedToday }}</h3>
+          </div>
+          <div class="card stat">
+            <p class="eyebrow">Collected Today</p>
+            <h3>{{ formatCurrency(billingStats.amountCollectedToday) }}</h3>
           </div>
         </div>
 
+        <!-- Search -->
         <div class="search-header no-title">
-          <div class="search-box" ref="searchBox">
-            <label class="input-label" for="customerSearch">Search</label>
+          <div class="search-box" style="min-width: 400px;">
+            <label class="input-label" for="billingSearch">Search by Customer Name, Package ID, or Tracking Number</label>
             <div class="input-shell">
               <input
-                id="customerSearch"
+                id="billingSearch"
                 type="text"
-                placeholder="Search customer, package ID, tracking"
+                placeholder="Search..."
                 autocomplete="off"
-                v-model="searchQuery"
-                @focus="showAutocomplete = true"
-                @input="showAutocomplete = true"
-                @keydown.enter.prevent="selectFirstMatch"
+                v-model="billingSearchQuery"
               />
-            </div>
-            <div class="autocomplete" v-if="showAutocomplete && filteredCustomers.length">
-              <button
-                v-for="customer in filteredCustomers"
-                :key="customer.id"
-                type="button"
-                @click="setActiveCustomer(customer)"
-              >
-                {{ customer.name }} <span class="muted">({{ customer.id }})</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="table-actions">
-          <div>
-            <div class="active-customer muted">
-              <template v-if="activeCustomer">
-                {{ activeCustomer.name }} — {{ activeCustomer.id }}
-              </template>
-              <template v-else>No customer selected</template>
             </div>
           </div>
           <div class="action-group">
-            <button class="pill secondary" type="button" @click="openBulkCollection" :disabled="!activeCustomer || !currentUser || !can('collect')">Mark all collected</button>
-            <button class="pill" type="button" @click="toggleView">
-              {{ showAll ? "Show ready packages" : "Show all packages" }}
-            </button>
-            <button class="pill ghost" type="button" @click="openAddPackage" :disabled="!currentUser || !can('addPackage')">Add package</button>
+            <select v-model="billingStatusFilter" class="billing-filter-select">
+              <option value="all">All BL Status</option>
+              <option value="unbilled">Unbilled</option>
+              <option value="Open">Open</option>
+              <option value="Partial">Partial</option>
+              <option value="Closed">Closed</option>
+            </select>
           </div>
         </div>
 
+        <!-- Billing Table -->
         <div class="table-shell">
           <table>
             <thead>
               <tr>
-                <th><input type="checkbox" :checked="allPackagesSelected" @change="toggleAllPackages" /></th>
-                <th>Freight</th>
                 <th>Package ID</th>
                 <th>Tracking</th>
+                <th>Customer</th>
+                <th>Alt Name</th>
+                <th>SL Status</th>
                 <th>Cost</th>
-                <th>Late fee</th>
-                <th>Status</th>
-                <th>Method</th>
-                <th>Updated by</th>
-                <th>Updated</th>
-                <th>Notes</th>
+                <th>BL Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="!activeCustomer || !visiblePackages.length" class="empty">
-                <td colspan="12">No ready packages yet. Select a customer or show all to see additional statuses.</td>
+              <tr v-if="filteredBillingItems.length === 0" class="empty">
+                <td colspan="8">No packages found. Upload shipment logs in the Shipment Bin to see packages here.</td>
               </tr>
-              <tr v-for="pkg in visiblePackages" :key="pkg.packageId">
-                <td><input type="checkbox" :checked="selectedPackageIds.includes(pkg.packageId)" @change="togglePackageSelection(pkg.packageId)" /></td>
-                <td class="freight-cell">
-                  <template v-if="pkg.freightType === 'Air'">
-                    <img :src="planeIcon" alt="Air" class="freight-icon" />
-                  </template>
-                  <template v-else-if="pkg.freightType === 'Sea'">
-                    <img :src="shipIcon" alt="Sea" class="freight-icon" />
-                  </template>
-                  <template v-else>—</template>
-                </td>
-                <td>{{ pkg.packageId }}</td>
-                <td>{{ pkg.trackingNumber }}</td>
-                <td>{{ formatCurrency(pkg.cost) }}</td>
-                <td>{{ formatCurrency(computeLateFee(pkg)) }}</td>
+              <tr v-for="item in paginatedBillingItems" :key="item.id">
+                <td><strong>{{ item.package_id || item.id }}</strong></td>
+                <td>{{ item.tracking_number }}</td>
+                <td>{{ item.customer_name }}</td>
+                <td>{{ item.alt_name || '—' }}</td>
                 <td>
-                  <span class="tag">{{ pkg.status || 'Processing in Office' }}</span>
+                  <span class="tag" :class="{
+                    'success': item.status === 'received',
+                    'secondary': item.status === 'pending',
+                    'danger': item.status === 'not_found'
+                  }">
+                    {{ item.status === 'received' ? 'Received' : item.status === 'pending' ? 'Pending' : item.status === 'not_found' ? 'Not Found' : item.status }}
+                  </span>
                 </td>
-                <td>{{ pkg.paymentMethod }}</td>
-                <td>{{ pkg.updatedBy }}</td>
-                <td>{{ pkg.dateUpdated }}</td>
-                <td><span class="note">{{ latestNote(pkg) }}</span></td>
+                <td>{{ formatCurrency(calculateItemCost(item)) }}</td>
                 <td>
-                  <div class="actions">
-                    <button class="pill secondary" type="button" @click="openCollection([pkg.packageId])" :disabled="!currentUser || !can('collect')">Collected</button>
-                    <button class="pill ghost" type="button" @click="openView(pkg)">View</button>
-                    <button class="pill ghost" type="button" @click="openEdit(pkg)" :disabled="!currentUser || !can('edit')">Edit</button>
-                    <button class="pill danger" type="button" @click="openDelete(pkg)" :disabled="!currentUser || !can('delete')">Delete</button>
+                  <div class="bl-status-dropdown" @click.stop>
+                    <button
+                      class="bl-status-btn"
+                      :class="getBLStatusClass(item.billing_status)"
+                      @click="toggleBLStatusDropdown(item.id)"
+                    >
+                      {{ item.billing_status || 'unbilled' }}
+                      <span class="chevron">▼</span>
+                    </button>
+                    <div v-if="openBLStatusDropdownId === item.id" class="bl-status-menu">
+                      <button @click="updateBillingStatus(item, 'unbilled')">Unbilled</button>
+                      <button @click="updateBillingStatus(item, 'Open')">Open</button>
+                      <button @click="updateBillingStatus(item, 'Partial')">Partial</button>
+                      <button @click="updateBillingStatus(item, 'Closed')">Closed</button>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="billing-actions">
+                    <button
+                      class="pill small"
+                      type="button"
+                      @click="openBillModal(item)"
+                      :disabled="item.billing_status !== 'unbilled'"
+                    >Bill</button>
+                    <button
+                      class="pill small secondary"
+                      type="button"
+                      @click="openCollectModal(item)"
+                      :disabled="item.billing_status === 'unbilled' || item.billing_status === 'Closed'"
+                    >Collect</button>
+                    <div class="kebab-menu-container">
+                      <button class="kebab-btn" @click="toggleBillingKebab(item.id)" type="button" aria-label="More actions">
+                        ⋮
+                      </button>
+                      <div v-if="openBillingKebabId === item.id" class="kebab-dropdown">
+                        <button @click="openBillingViewModal(item); closeBillingKebab()">View</button>
+                        <button @click="openBillingEditModal(item); closeBillingKebab()">Edit</button>
+                        <button class="danger" @click="openBillingDeleteModal(item); closeBillingKebab()">Delete</button>
+                      </div>
+                    </div>
                   </div>
                 </td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Pagination -->
+        <div v-if="filteredBillingItems.length > billingItemsPerPage" class="billing-pagination">
+          <button
+            class="pill ghost small"
+            :disabled="billingCurrentPage === 1"
+            @click="billingCurrentPage--"
+          >Previous</button>
+          <span class="pagination-info">
+            Page {{ billingCurrentPage }} of {{ billingTotalPages }} ({{ filteredBillingItems.length }} items)
+          </span>
+          <button
+            class="pill ghost small"
+            :disabled="billingCurrentPage >= billingTotalPages"
+            @click="billingCurrentPage++"
+          >Next</button>
         </div>
       </section>
 
@@ -1896,6 +1905,284 @@
       </div>
     </div>
 
+    <!-- BILLING CONSOLE MODALS -->
+
+    <!-- Bill Modal -->
+    <div class="modal" v-if="billingModals.bill">
+      <div class="modal-card">
+        <header>
+          <div>
+            <p class="eyebrow">Billing</p>
+            <h3>Bill Package</h3>
+          </div>
+          <button class="icon-btn" aria-label="Close modal" @click="billingModals.bill = false">&times;</button>
+        </header>
+        <form @submit.prevent="confirmBill">
+          <div class="billing-info-row">
+            <div><strong>Package ID:</strong> {{ billForm.packageId }}</div>
+            <div><strong>Customer:</strong> {{ billForm.customerName }}</div>
+            <div><strong>Tracking:</strong> {{ billForm.trackingNumber }}</div>
+          </div>
+          <div class="form-grid">
+            <label>
+              <span class="input-label">Package Cost ($)</span>
+              <input v-model.number="billForm.packageCost" type="number" min="0" step="0.01" placeholder="0.00" required />
+            </label>
+            <label>
+              <span class="input-label">Import Fee ($)</span>
+              <input v-model.number="billForm.customFee" type="number" min="0" step="0.01" placeholder="0.00" />
+            </label>
+            <label>
+              <span class="input-label">Processing Fee ($)</span>
+              <input v-model.number="billForm.processingFee" type="number" min="0" step="0.01" placeholder="0.00" />
+            </label>
+          </div>
+          <div class="billing-total">
+            <strong>Total Cost:</strong> {{ formatCurrency((billForm.packageCost || 0) + (billForm.customFee || 0) + (billForm.processingFee || 0)) }}
+          </div>
+          <div class="modal-actions">
+            <button class="pill ghost" type="button" @click="billingModals.bill = false">Cancel</button>
+            <button class="pill" type="submit">Confirm Bill</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Collect Modal -->
+    <div class="modal" v-if="billingModals.collect">
+      <div class="modal-card">
+        <header>
+          <div>
+            <p class="eyebrow">Collection</p>
+            <h3>Collect Payment</h3>
+          </div>
+          <button class="icon-btn" aria-label="Close modal" @click="billingModals.collect = false">&times;</button>
+        </header>
+        <form @submit.prevent="confirmCollect">
+          <div class="billing-info-row">
+            <div><strong>Package ID:</strong> {{ collectForm.packageId }}</div>
+            <div><strong>Customer:</strong> {{ collectForm.customerName }}</div>
+          </div>
+          <div class="billing-cost-breakdown">
+            <div class="cost-line"><span>Package Cost:</span> <span>{{ formatCurrency(collectForm.packageCost || 0) }}</span></div>
+            <div class="cost-line"><span>Import Fee:</span> <span>{{ formatCurrency(collectForm.customFee || 0) }}</span></div>
+            <div class="cost-line"><span>Processing Fee:</span> <span>{{ formatCurrency(collectForm.processingFee || 0) }}</span></div>
+            <div class="cost-line late-fee"><span>Late Fee ({{ collectForm.lateDays }} days):</span> <span>{{ formatCurrency(collectForm.lateFee || 0) }}</span></div>
+            <div class="cost-line total"><span>Total Due:</span> <span>{{ formatCurrency(collectForm.totalDue) }}</span></div>
+            <div class="cost-line paid"><span>Previously Paid:</span> <span>{{ formatCurrency(collectForm.amountPreviouslyPaid || 0) }}</span></div>
+            <div class="cost-line balance"><span>Balance:</span> <span>{{ formatCurrency(collectForm.balance) }}</span></div>
+          </div>
+          <div class="form-grid">
+            <label>
+              <span class="input-label">Payment Type</span>
+              <select v-model="collectForm.paymentMethod" required>
+                <option value="">Select payment type</option>
+                <option value="Cash">Cash</option>
+                <option value="POS">POS</option>
+                <option value="Transfer">Transfer</option>
+                <option value="Loyalty">Loyalty</option>
+              </select>
+            </label>
+            <label>
+              <span class="input-label">Amount Paid ($)</span>
+              <input v-model.number="collectForm.amountPaid" type="number" min="0" step="0.01" :max="collectForm.balance" placeholder="0.00" required />
+            </label>
+          </div>
+          <label>
+            <span class="input-label">Notes (optional)</span>
+            <textarea v-model="collectForm.notes" rows="2" placeholder="Payment notes..."></textarea>
+          </label>
+          <div class="modal-actions">
+            <button class="pill ghost" type="button" @click="billingModals.collect = false">Cancel</button>
+            <button class="pill secondary" type="submit">Collect Payment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Billing View Modal -->
+    <div class="modal" v-if="billingModals.view">
+      <div class="modal-card large">
+        <header>
+          <div>
+            <p class="eyebrow">Package Details</p>
+            <h3>{{ billingViewItem?.package_id || billingViewItem?.id }}</h3>
+          </div>
+          <button class="icon-btn" aria-label="Close modal" @click="billingModals.view = false">&times;</button>
+        </header>
+        <div class="billing-view-content">
+          <div class="form-grid">
+            <div>
+              <p class="input-label">Customer Name</p>
+              <p class="view-value">{{ billingViewItem?.customer_name }}</p>
+            </div>
+            <div>
+              <p class="input-label">Alt Name</p>
+              <p class="view-value">{{ billingViewItem?.alt_name || '—' }}</p>
+            </div>
+            <div>
+              <p class="input-label">Tracking Number</p>
+              <p class="view-value">{{ billingViewItem?.tracking_number }}</p>
+            </div>
+            <div>
+              <p class="input-label">Weight</p>
+              <p class="view-value">{{ billingViewItem?.weight ? billingViewItem.weight + ' lb' : '—' }}</p>
+            </div>
+            <div>
+              <p class="input-label">Shipment Log Status</p>
+              <p class="view-value">{{ billingViewItem?.status || '—' }}</p>
+            </div>
+            <div>
+              <p class="input-label">Billing Status</p>
+              <p class="view-value">{{ billingViewItem?.billing_status || 'unbilled' }}</p>
+            </div>
+          </div>
+          <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color);" />
+          <h4 style="margin-bottom: 12px; font-size: 16px;">Billing Information</h4>
+          <div class="form-grid">
+            <div>
+              <p class="input-label">Package Cost</p>
+              <p class="view-value">{{ formatCurrency(billingViewItem?.package_cost || 0) }}</p>
+            </div>
+            <div>
+              <p class="input-label">Import Fee</p>
+              <p class="view-value">{{ formatCurrency(billingViewItem?.custom_fee || 0) }}</p>
+            </div>
+            <div>
+              <p class="input-label">Processing Fee</p>
+              <p class="view-value">{{ formatCurrency(billingViewItem?.processing_fee || 0) }}</p>
+            </div>
+            <div>
+              <p class="input-label">Late Fee</p>
+              <p class="view-value">{{ formatCurrency(billingViewItem?.late_fee || 0) }}</p>
+            </div>
+            <div>
+              <p class="input-label">Total Cost</p>
+              <p class="view-value"><strong>{{ formatCurrency(calculateItemCost(billingViewItem)) }}</strong></p>
+            </div>
+            <div>
+              <p class="input-label">Amount Paid</p>
+              <p class="view-value">{{ formatCurrency(billingViewItem?.amount_paid || 0) }}</p>
+            </div>
+            <div>
+              <p class="input-label">Payment Method</p>
+              <p class="view-value">{{ billingViewItem?.payment_method || '—' }}</p>
+            </div>
+            <div>
+              <p class="input-label">Bill Date</p>
+              <p class="view-value">{{ billingViewItem?.bill_date ? new Date(billingViewItem.bill_date).toLocaleDateString() : '—' }}</p>
+            </div>
+            <div>
+              <p class="input-label">Collection Date</p>
+              <p class="view-value">{{ billingViewItem?.collection_date ? new Date(billingViewItem.collection_date).toLocaleDateString() : '—' }}</p>
+            </div>
+            <div>
+              <p class="input-label">Billed By</p>
+              <p class="view-value">{{ billingViewItem?.billed_by || '—' }}</p>
+            </div>
+            <div>
+              <p class="input-label">Collected By</p>
+              <p class="view-value">{{ billingViewItem?.collected_by || '—' }}</p>
+            </div>
+            <div>
+              <p class="input-label">Notes</p>
+              <p class="view-value">{{ billingViewItem?.billing_notes || '—' }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="pill ghost" type="button" @click="billingModals.view = false">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Billing Edit Modal -->
+    <div class="modal" v-if="billingModals.edit">
+      <div class="modal-card">
+        <header>
+          <div>
+            <p class="eyebrow">Edit Package</p>
+            <h3>{{ billingEditForm.packageId }}</h3>
+          </div>
+          <button class="icon-btn" aria-label="Close modal" @click="billingModals.edit = false">&times;</button>
+        </header>
+        <form @submit.prevent="confirmBillingEdit">
+          <div class="form-grid">
+            <label>
+              <span class="input-label">Customer Name</span>
+              <input v-model="billingEditForm.customerName" type="text" required />
+            </label>
+            <label>
+              <span class="input-label">Alt Name</span>
+              <input v-model="billingEditForm.altName" type="text" />
+            </label>
+            <label>
+              <span class="input-label">Weight (lb)</span>
+              <input v-model.number="billingEditForm.weight" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              <span class="input-label">Package Cost ($)</span>
+              <input v-model.number="billingEditForm.packageCost" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              <span class="input-label">Import Fee ($)</span>
+              <input v-model.number="billingEditForm.customFee" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              <span class="input-label">Processing Fee ($)</span>
+              <input v-model.number="billingEditForm.processingFee" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              <span class="input-label">Late Fee ($)</span>
+              <input v-model.number="billingEditForm.lateFee" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              <span class="input-label">Payment Method</span>
+              <select v-model="billingEditForm.paymentMethod">
+                <option value="">None</option>
+                <option value="Cash">Cash</option>
+                <option value="POS">POS</option>
+                <option value="Transfer">Transfer</option>
+                <option value="Loyalty">Loyalty</option>
+              </select>
+            </label>
+          </div>
+          <label>
+            <span class="input-label">Billing Notes</span>
+            <textarea v-model="billingEditForm.billingNotes" rows="2" placeholder="Notes..."></textarea>
+          </label>
+          <div class="modal-actions">
+            <button class="pill ghost" type="button" @click="billingModals.edit = false">Cancel</button>
+            <button class="pill" type="submit">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Billing Delete Modal -->
+    <div class="modal" v-if="billingModals.delete">
+      <div class="modal-card">
+        <header>
+          <div>
+            <p class="eyebrow">Delete Package</p>
+            <h3>{{ billingDeleteItem?.package_id || billingDeleteItem?.id }}</h3>
+          </div>
+          <button class="icon-btn" aria-label="Close modal" @click="billingModals.delete = false">&times;</button>
+        </header>
+        <p class="muted" style="margin-bottom: 16px;">
+          Are you sure you want to delete this package? This action cannot be undone.
+        </p>
+        <div class="billing-info-row">
+          <div><strong>Customer:</strong> {{ billingDeleteItem?.customer_name }}</div>
+          <div><strong>Tracking:</strong> {{ billingDeleteItem?.tracking_number }}</div>
+        </div>
+        <div class="modal-actions">
+          <button class="pill ghost" type="button" @click="billingModals.delete = false">Cancel</button>
+          <button class="pill danger" type="button" @click="confirmBillingDelete">Delete Package</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal" v-if="userModals.add">
       <div class="modal-card">
         <header>
@@ -2963,6 +3250,74 @@ const modals = reactive({
   adminEdit: false,
 });
 
+// ==================== BILLING CONSOLE STATE ====================
+const billingItems = ref([]);
+const billingSearchQuery = ref('');
+const billingStatusFilter = ref('all');
+const billingCurrentPage = ref(1);
+const billingItemsPerPage = 25;
+const billingStats = reactive({
+  unbilled: 0,
+  open: 0,
+  closedToday: 0,
+  amountCollectedToday: 0
+});
+
+const billingModals = reactive({
+  bill: false,
+  collect: false,
+  view: false,
+  edit: false,
+  delete: false,
+});
+
+const billForm = reactive({
+  id: null,
+  packageId: '',
+  customerName: '',
+  trackingNumber: '',
+  packageCost: 0,
+  customFee: 0,
+  processingFee: 0,
+});
+
+const collectForm = reactive({
+  id: null,
+  packageId: '',
+  customerName: '',
+  packageCost: 0,
+  customFee: 0,
+  processingFee: 0,
+  lateFee: 0,
+  lateDays: 0,
+  totalDue: 0,
+  amountPreviouslyPaid: 0,
+  balance: 0,
+  paymentMethod: '',
+  amountPaid: 0,
+  notes: '',
+});
+
+const billingViewItem = ref(null);
+const billingDeleteItem = ref(null);
+
+const billingEditForm = reactive({
+  id: null,
+  packageId: '',
+  customerName: '',
+  altName: '',
+  weight: 0,
+  packageCost: 0,
+  customFee: 0,
+  processingFee: 0,
+  lateFee: 0,
+  paymentMethod: '',
+  billingNotes: '',
+});
+
+const openBillingKebabId = ref(null);
+const openBLStatusDropdownId = ref(null);
+
 const collectionForm = reactive({
   amount: "",
   method: "Cash",
@@ -3383,6 +3738,38 @@ const stats = computed(() => {
     ready,
     collectedToday: collectedToday.value,
   };
+});
+
+// ==================== BILLING CONSOLE COMPUTED ====================
+const filteredBillingItems = computed(() => {
+  let items = billingItems.value;
+
+  // Filter by billing status
+  if (billingStatusFilter.value !== 'all') {
+    items = items.filter(item => item.billing_status === billingStatusFilter.value);
+  }
+
+  // Filter by search query
+  const query = billingSearchQuery.value.trim().toLowerCase();
+  if (query) {
+    items = items.filter(item =>
+      (item.customer_name && item.customer_name.toLowerCase().includes(query)) ||
+      (item.package_id && item.package_id.toLowerCase().includes(query)) ||
+      (item.tracking_number && item.tracking_number.toLowerCase().includes(query))
+    );
+  }
+
+  return items;
+});
+
+const billingTotalPages = computed(() => {
+  return Math.ceil(filteredBillingItems.value.length / billingItemsPerPage);
+});
+
+const paginatedBillingItems = computed(() => {
+  const start = (billingCurrentPage.value - 1) * billingItemsPerPage;
+  const end = start + billingItemsPerPage;
+  return filteredBillingItems.value.slice(start, end);
 });
 
 // Packages page computed properties
@@ -3847,6 +4234,259 @@ const refreshData = () => {
   searchQuery.value = "";
   activeCustomerId.value = null;
   showAutocomplete.value = false;
+};
+
+// ==================== BILLING CONSOLE FUNCTIONS ====================
+const loadBillingItems = async () => {
+  try {
+    const response = await fetch('http://localhost:4000/api/billing/all');
+    const data = await response.json();
+    if (data.success) {
+      billingItems.value = data.items;
+    }
+  } catch (error) {
+    console.error('Error loading billing items:', error);
+  }
+};
+
+const loadBillingStats = async () => {
+  try {
+    const response = await fetch('http://localhost:4000/api/billing/stats');
+    const data = await response.json();
+    if (data.success) {
+      billingStats.unbilled = data.stats.unbilled;
+      billingStats.open = data.stats.open;
+      billingStats.closedToday = data.stats.closedToday;
+      billingStats.amountCollectedToday = data.stats.amountCollectedToday;
+    }
+  } catch (error) {
+    console.error('Error loading billing stats:', error);
+  }
+};
+
+const calculateItemCost = (item) => {
+  if (!item) return 0;
+  return (item.package_cost || 0) + (item.custom_fee || 0) + (item.processing_fee || 0) + (item.late_fee || 0);
+};
+
+const calculateLateFee = (item) => {
+  if (!item || !item.bill_date || item.billing_status !== 'Open') return { fee: 0, days: 0 };
+  const billDate = new Date(item.bill_date);
+  const now = new Date();
+  const daysDiff = Math.floor((now - billDate) / (1000 * 60 * 60 * 24));
+  const lateFee = daysDiff > 7 ? (daysDiff - 7) * 50 : 0;
+  return { fee: lateFee, days: daysDiff > 7 ? daysDiff - 7 : 0 };
+};
+
+const getBLStatusClass = (status) => {
+  switch (status) {
+    case 'unbilled': return 'bl-unbilled';
+    case 'Open': return 'bl-open';
+    case 'Partial': return 'bl-partial';
+    case 'Closed': return 'bl-closed';
+    default: return 'bl-unbilled';
+  }
+};
+
+const toggleBLStatusDropdown = (id) => {
+  if (openBLStatusDropdownId.value === id) {
+    openBLStatusDropdownId.value = null;
+  } else {
+    openBLStatusDropdownId.value = id;
+    openBillingKebabId.value = null;
+  }
+};
+
+const toggleBillingKebab = (id) => {
+  if (openBillingKebabId.value === id) {
+    openBillingKebabId.value = null;
+  } else {
+    openBillingKebabId.value = id;
+    openBLStatusDropdownId.value = null;
+  }
+};
+
+const closeBillingKebab = () => {
+  openBillingKebabId.value = null;
+};
+
+const updateBillingStatus = async (item, status) => {
+  try {
+    const response = await fetch(`http://localhost:4000/api/billing/status/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, updatedBy: currentUser.value?.name || 'System' })
+    });
+    const data = await response.json();
+    if (data.success) {
+      item.billing_status = status;
+      openBLStatusDropdownId.value = null;
+      await loadBillingStats();
+    }
+  } catch (error) {
+    console.error('Error updating billing status:', error);
+  }
+};
+
+const openBillModal = (item) => {
+  billForm.id = item.id;
+  billForm.packageId = item.package_id || item.id;
+  billForm.customerName = item.customer_name;
+  billForm.trackingNumber = item.tracking_number;
+  billForm.packageCost = 0;
+  billForm.customFee = 0;
+  billForm.processingFee = 0;
+  billingModals.bill = true;
+};
+
+const confirmBill = async () => {
+  try {
+    const response = await fetch(`http://localhost:4000/api/billing/bill/${billForm.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        packageCost: billForm.packageCost,
+        customFee: billForm.customFee,
+        processingFee: billForm.processingFee,
+        billedBy: currentUser.value?.name || 'System'
+      })
+    });
+    const data = await response.json();
+    if (data.success) {
+      billingModals.bill = false;
+      await loadBillingItems();
+      await loadBillingStats();
+    }
+  } catch (error) {
+    console.error('Error billing item:', error);
+  }
+};
+
+const openCollectModal = (item) => {
+  const lateInfo = calculateLateFee(item);
+  const baseCost = (item.package_cost || 0) + (item.custom_fee || 0) + (item.processing_fee || 0);
+  const totalWithLate = baseCost + lateInfo.fee;
+  const previouslyPaid = item.amount_paid || 0;
+
+  collectForm.id = item.id;
+  collectForm.packageId = item.package_id || item.id;
+  collectForm.customerName = item.customer_name;
+  collectForm.packageCost = item.package_cost || 0;
+  collectForm.customFee = item.custom_fee || 0;
+  collectForm.processingFee = item.processing_fee || 0;
+  collectForm.lateFee = lateInfo.fee;
+  collectForm.lateDays = lateInfo.days;
+  collectForm.totalDue = totalWithLate;
+  collectForm.amountPreviouslyPaid = previouslyPaid;
+  collectForm.balance = totalWithLate - previouslyPaid;
+  collectForm.paymentMethod = '';
+  collectForm.amountPaid = collectForm.balance;
+  collectForm.notes = '';
+  billingModals.collect = true;
+};
+
+const confirmCollect = async () => {
+  try {
+    const response = await fetch(`http://localhost:4000/api/billing/collect/${collectForm.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paymentMethod: collectForm.paymentMethod,
+        amountPaid: collectForm.amountPaid,
+        lateFee: collectForm.lateFee,
+        notes: collectForm.notes,
+        collectedBy: currentUser.value?.name || 'System'
+      })
+    });
+    const data = await response.json();
+    if (data.success) {
+      billingModals.collect = false;
+      await loadBillingItems();
+      await loadBillingStats();
+    }
+  } catch (error) {
+    console.error('Error collecting payment:', error);
+  }
+};
+
+const openBillingViewModal = (item) => {
+  billingViewItem.value = item;
+  billingModals.view = true;
+};
+
+const openBillingEditModal = (item) => {
+  billingEditForm.id = item.id;
+  billingEditForm.packageId = item.package_id || item.id;
+  billingEditForm.customerName = item.customer_name;
+  billingEditForm.altName = item.alt_name || '';
+  billingEditForm.weight = item.weight || 0;
+  billingEditForm.packageCost = item.package_cost || 0;
+  billingEditForm.customFee = item.custom_fee || 0;
+  billingEditForm.processingFee = item.processing_fee || 0;
+  billingEditForm.lateFee = item.late_fee || 0;
+  billingEditForm.paymentMethod = item.payment_method || '';
+  billingEditForm.billingNotes = item.billing_notes || '';
+  billingModals.edit = true;
+};
+
+const confirmBillingEdit = async () => {
+  try {
+    const response = await fetch(`http://localhost:4000/api/billing/edit/${billingEditForm.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerName: billingEditForm.customerName,
+        altName: billingEditForm.altName,
+        weight: billingEditForm.weight,
+        customFee: billingEditForm.customFee,
+        processingFee: billingEditForm.processingFee,
+        packageCost: billingEditForm.packageCost,
+        lateFee: billingEditForm.lateFee,
+        paymentMethod: billingEditForm.paymentMethod,
+        billingNotes: billingEditForm.billingNotes,
+        updatedBy: currentUser.value?.name || 'System'
+      })
+    });
+    const data = await response.json();
+    if (data.success) {
+      billingModals.edit = false;
+      await loadBillingItems();
+      await loadBillingStats();
+    }
+  } catch (error) {
+    console.error('Error editing billing item:', error);
+  }
+};
+
+const openBillingDeleteModal = (item) => {
+  billingDeleteItem.value = item;
+  billingModals.delete = true;
+};
+
+const confirmBillingDelete = async () => {
+  if (!billingDeleteItem.value) return;
+  try {
+    const response = await fetch(`http://localhost:4000/api/shipment-items/${billingDeleteItem.value.id}`, {
+      method: 'DELETE'
+    });
+    const data = await response.json();
+    if (data.success) {
+      billingModals.delete = false;
+      billingDeleteItem.value = null;
+      await loadBillingItems();
+      await loadBillingStats();
+    }
+  } catch (error) {
+    console.error('Error deleting billing item:', error);
+  }
+};
+
+// Close dropdowns when clicking outside
+const handleClickOutside = (event) => {
+  if (!event.target.closest('.bl-status-dropdown') && !event.target.closest('.kebab-menu-container')) {
+    openBLStatusDropdownId.value = null;
+    openBillingKebabId.value = null;
+  }
 };
 
 const openView = (pkg) => {
@@ -5638,11 +6278,15 @@ const loadPackagesFromBackend = async () => {
 
 onMounted(() => {
   document.addEventListener("click", handleClickAway);
+  document.addEventListener("click", handleClickOutside);
   loadPackagesFromBackend();
+  loadBillingItems();
+  loadBillingStats();
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleClickAway);
+  document.removeEventListener("click", handleClickOutside);
 });
 </script>
 
@@ -5868,5 +6512,215 @@ onBeforeUnmount(() => {
 .packages-sync-synced {
   background: #d1fae5;
   color: #065f46;
+}
+
+/* ==================== BILLING CONSOLE STYLES ==================== */
+
+.billing-filter-select {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #d9e2f1;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.billing-filter-select:focus {
+  border-color: var(--sgx-light);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 174, 239, 0.1);
+}
+
+.billing-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* BL Status Dropdown */
+.bl-status-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.bl-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bl-status-btn .chevron {
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+
+.bl-status-btn:hover .chevron {
+  transform: translateY(1px);
+}
+
+.bl-status-btn.bl-unbilled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.bl-status-btn.bl-open {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+}
+
+.bl-status-btn.bl-partial {
+  background: rgba(59, 130, 246, 0.15);
+  color: #1e40af;
+}
+
+.bl-status-btn.bl-closed {
+  background: rgba(16, 185, 129, 0.15);
+  color: #065f46;
+}
+
+.bl-status-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  min-width: 120px;
+  overflow: hidden;
+}
+
+.bl-status-menu button {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  text-align: left;
+  border: none;
+  background: none;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.bl-status-menu button:hover {
+  background: rgba(0, 174, 239, 0.08);
+}
+
+/* Billing Pagination */
+.billing-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.pagination-info {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* Billing Modal Styles */
+.billing-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #f8fafb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.billing-info-row div {
+  flex: 1;
+  min-width: 150px;
+}
+
+.billing-total {
+  padding: 12px 16px;
+  background: linear-gradient(135deg, var(--sgx-blue), var(--sgx-light));
+  color: white;
+  border-radius: 8px;
+  font-size: 16px;
+  text-align: center;
+  margin-top: 16px;
+}
+
+.billing-cost-breakdown {
+  padding: 16px;
+  background: #f8fafb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.cost-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 14px;
+  border-bottom: 1px solid #e5e9f2;
+}
+
+.cost-line:last-child {
+  border-bottom: none;
+}
+
+.cost-line.late-fee {
+  color: #dc2626;
+}
+
+.cost-line.total {
+  font-weight: 700;
+  font-size: 16px;
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 2px solid var(--border-color);
+  border-bottom: none;
+}
+
+.cost-line.paid {
+  color: #10b981;
+}
+
+.cost-line.balance {
+  font-weight: 700;
+  color: var(--sgx-blue);
+}
+
+/* View Modal */
+.billing-view-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.view-value {
+  font-size: 14px;
+  color: var(--text-main);
+  margin: 0;
+}
+
+/* Tag Styles for Billing */
+td .tag.success {
+  background: rgba(16, 185, 129, 0.12);
+  color: #065f46;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+td .tag.danger {
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+  border-color: rgba(220, 38, 38, 0.25);
 }
 </style>

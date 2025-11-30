@@ -1101,12 +1101,13 @@ app.put('/api/shipment-items/:id', (req, res) => {
       return res.status(400).json({ error: 'Customer name and tracking number are required' });
     }
 
-    const stmt = db.prepare(`
-      UPDATE shipment_items
-      SET customer_name = ?, alt_name = ?, tracking_number = ?, package_id = ?, weight = ?
-      WHERE id = ?
-    `);
-    stmt.run(customerName, altName, trackingNumber, packageId, weight, id);
+    shipmentItemQueries.update(id, {
+      customerName,
+      altName,
+      trackingNumber,
+      packageId,
+      weight
+    });
 
     res.json({ success: true, message: 'Shipment item updated successfully' });
   } catch (error) {
@@ -1125,8 +1126,7 @@ app.patch('/api/shipment-items/:id/status', (req, res) => {
       return res.status(400).json({ error: 'Status is required' });
     }
 
-    const stmt = db.prepare('UPDATE shipment_items SET status = ? WHERE id = ?');
-    stmt.run(status, id);
+    shipmentItemQueries.updateStatus(id, status);
 
     res.json({ success: true, message: 'Status updated successfully' });
   } catch (error) {
@@ -1145,8 +1145,7 @@ app.put('/api/shipment-logs/:id', (req, res) => {
       return res.status(400).json({ error: 'Log name and shipment date are required' });
     }
 
-    const stmt = db.prepare('UPDATE shipment_logs SET log_name = ?, shipment_date = ? WHERE id = ?');
-    stmt.run(logName, shipmentDate, id);
+    shipmentLogQueries.update(id, { logName, shipmentDate });
 
     res.json({ success: true, message: 'Shipment log updated successfully' });
   } catch (error) {
@@ -1199,7 +1198,7 @@ app.post('/api/shipment-items/add-not-found', (req, res) => {
     });
 
     // Delete the not found scan record since it's now been added to a log
-    db.prepare('DELETE FROM not_found_scans WHERE tracking_number = ?').run(trackingNumber);
+    notFoundScanQueries.deleteByTracking(trackingNumber);
 
     res.json({ success: true, message: 'Package added to shipment log successfully', itemId: result.lastInsertRowid });
   } catch (error) {
@@ -1221,6 +1220,17 @@ app.delete('/api/not-found-scans/:id', (req, res) => {
 });
 
 // ==================== BILLING CONSOLE ENDPOINTS ====================
+
+// Get all shipment items for billing console (from all shipment logs)
+app.get('/api/billing/all', (req, res) => {
+  try {
+    const items = shipmentItemQueries.getAllWithLogInfo();
+    res.json({ success: true, items });
+  } catch (error) {
+    console.error('Error fetching all billing items:', error);
+    res.status(500).json({ error: 'Failed to fetch billing items' });
+  }
+});
 
 // Search shipment items for billing console
 app.get('/api/billing/search', (req, res) => {

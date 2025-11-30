@@ -426,11 +426,31 @@ export const shipmentLogQueries = {
   },
 
   delete: (id) => db.prepare('DELETE FROM shipment_logs WHERE id = ?').run(id),
+
+  update: (id, data) => {
+    const stmt = db.prepare('UPDATE shipment_logs SET log_name = ?, shipment_date = ? WHERE id = ?');
+    return stmt.run(data.logName, data.shipmentDate, id);
+  },
 };
 
 // Shipment item queries
 export const shipmentItemQueries = {
   getAll: () => db.prepare('SELECT * FROM shipment_items ORDER BY created_at DESC').all(),
+
+  // Get all items with shipment log info for billing console
+  getAllWithLogInfo: () => {
+    const stmt = db.prepare(`
+      SELECT
+        si.*,
+        sl.log_name as shipment_log_name,
+        sl.shipment_date as shipment_log_date,
+        sl.cargo_type as shipment_cargo_type
+      FROM shipment_items si
+      LEFT JOIN shipment_logs sl ON si.shipment_log_id = sl.id
+      ORDER BY si.created_at DESC
+    `);
+    return stmt.all();
+  },
 
   getById: (id) => db.prepare('SELECT * FROM shipment_items WHERE id = ?').get(id),
 
@@ -651,6 +671,20 @@ export const shipmentItemQueries = {
   },
 
   delete: (id) => db.prepare('DELETE FROM shipment_items WHERE id = ?').run(id),
+
+  update: (id, data) => {
+    const stmt = db.prepare(`
+      UPDATE shipment_items
+      SET customer_name = ?, alt_name = ?, tracking_number = ?, package_id = ?, weight = ?
+      WHERE id = ?
+    `);
+    return stmt.run(data.customerName, data.altName, data.trackingNumber, data.packageId, data.weight, id);
+  },
+
+  updateStatus: (id, status) => {
+    const stmt = db.prepare('UPDATE shipment_items SET status = ? WHERE id = ?');
+    return stmt.run(status, id);
+  },
 };
 
 // Not found scans queries
@@ -673,6 +707,8 @@ export const notFoundScanQueries = {
   },
 
   delete: (id) => db.prepare('DELETE FROM not_found_scans WHERE id = ?').run(id),
+
+  deleteByTracking: (trackingNumber) => db.prepare('DELETE FROM not_found_scans WHERE tracking_number = ?').run(trackingNumber),
 };
 
 // Roles queries
