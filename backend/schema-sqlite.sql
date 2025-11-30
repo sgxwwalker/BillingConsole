@@ -192,6 +192,21 @@ CREATE TABLE IF NOT EXISTS shipment_items (
     scanned_at DATETIME,
     scanned_by TEXT,
     created_at DATETIME DEFAULT (datetime('now')),
+    -- Billing fields
+    custom_fee REAL DEFAULT 0,
+    processing_fee REAL DEFAULT 0,
+    package_cost REAL DEFAULT 0,
+    late_fee REAL DEFAULT 0,
+    bill_date DATETIME,
+    billing_status TEXT DEFAULT 'unbilled',
+    payment_method TEXT,
+    amount_paid REAL DEFAULT 0,
+    billing_notes TEXT,
+    billed_by TEXT,
+    collected_by TEXT,
+    collection_date DATETIME,
+    date_updated DATETIME,
+    updated_by TEXT,
     FOREIGN KEY (shipment_log_id) REFERENCES shipment_logs(id) ON DELETE CASCADE
 );
 

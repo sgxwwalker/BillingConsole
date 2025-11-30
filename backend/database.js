@@ -23,6 +23,11 @@ export function initDatabase() {
     db.exec(schemaSQL);
 
     console.log('✅ Database schema initialized');
+
+    // Run migrations after schema initialization
+    import('./migrations.js').then(({ runMigrations }) => {
+      runMigrations();
+    });
   } catch (error) {
     console.error('❌ Error initializing database:', error);
     throw error;
@@ -143,6 +148,23 @@ export const userQueries = {
   updatePassword: (id, password) => {
     const stmt = db.prepare('UPDATE users SET password = ?, updated_at = datetime(\'now\') WHERE id = ?');
     return stmt.run(password, id);
+  },
+
+  updateProfile: (id, profile) => {
+    const stmt = db.prepare(`
+      UPDATE users
+      SET name = ?, email = ?, phone = ?, job_title = ?, department = ?, photo = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `);
+    return stmt.run(
+      profile.name,
+      profile.email,
+      profile.phone,
+      profile.job_title,
+      profile.department,
+      profile.photo,
+      id
+    );
   },
 
   activate: (id) => {
@@ -410,6 +432,8 @@ export const shipmentLogQueries = {
 export const shipmentItemQueries = {
   getAll: () => db.prepare('SELECT * FROM shipment_items ORDER BY created_at DESC').all(),
 
+  getById: (id) => db.prepare('SELECT * FROM shipment_items WHERE id = ?').get(id),
+
   getByLogId: (logId) => db.prepare('SELECT * FROM shipment_items WHERE shipment_log_id = ? ORDER BY customer_name').all(logId),
 
   getByTracking: (tracking) => db.prepare('SELECT * FROM shipment_items WHERE tracking_number = ? ORDER BY created_at DESC').all(tracking),
@@ -417,6 +441,65 @@ export const shipmentItemQueries = {
   getPending: (logId) => db.prepare('SELECT * FROM shipment_items WHERE shipment_log_id = ? AND status = ? ORDER BY customer_name').all(logId, 'pending'),
 
   getReceived: (logId) => db.prepare('SELECT * FROM shipment_items WHERE shipment_log_id = ? AND status = ? ORDER BY scanned_at DESC').all(logId, 'received'),
+
+  // Search across all shipment items for billing console
+  search: (searchTerm) => {
+    const stmt = db.prepare(`
+      SELECT * FROM shipment_items
+      WHERE customer_name LIKE ? OR package_id LIKE ? OR tracking_number LIKE ?
+      ORDER BY created_at DESC
+    `);
+    const term = `%${searchTerm}%`;
+    return stmt.all(term, term, term);
+  },
+
+  // Get items with billing information
+  getBillingItems: () => {
+    const stmt = db.prepare(`
+      SELECT * FROM shipment_items
+      WHERE billing_status != 'unbilled'
+      ORDER BY bill_date DESC
+    `);
+    return stmt.all();
+  },
+
+  // Get billing statistics
+  getBillingStats: () => {
+    const today = new Date().toISOString().split('T')[0];
+
+    // Count unbilled packages
+    const unbilled = db.prepare(`
+      SELECT COUNT(*) as count FROM shipment_items
+      WHERE billing_status = 'unbilled'
+    `).get().count;
+
+    // Count open packages
+    const open = db.prepare(`
+      SELECT COUNT(*) as count FROM shipment_items
+      WHERE billing_status = 'Open'
+    `).get().count;
+
+    // Count packages closed today
+    const closedToday = db.prepare(`
+      SELECT COUNT(*) as count FROM shipment_items
+      WHERE billing_status = 'Closed'
+      AND DATE(collection_date) = ?
+    `).get(today).count;
+
+    // Sum amount collected today
+    const amountCollectedToday = db.prepare(`
+      SELECT COALESCE(SUM(amount_paid), 0) as total FROM shipment_items
+      WHERE billing_status = 'Closed'
+      AND DATE(collection_date) = ?
+    `).get(today).total;
+
+    return {
+      unbilled,
+      open,
+      closedToday,
+      amountCollectedToday
+    };
+  },
 
   create: (item) => {
     const stmt = db.prepare(`
@@ -443,6 +526,119 @@ export const shipmentItemQueries = {
       WHERE id = ?
     `);
     return stmt.run(scannedBy, id);
+  },
+
+  // Bill a shipment item
+  bill: (id, billData) => {
+    const stmt = db.prepare(`
+      UPDATE shipment_items
+      SET custom_fee = ?, processing_fee = ?, package_cost = ?,
+          bill_date = datetime('now'), billing_status = 'Open',
+          billed_by = ?, date_updated = datetime('now'), updated_by = ?
+      WHERE id = ?
+    `);
+    return stmt.run(
+      billData.customFee || 0,
+      billData.processingFee || 0,
+      billData.packageCost || 0,
+      billData.billedBy,
+      billData.billedBy,
+      id
+    );
+  },
+
+  // Collect payment for a shipment item
+  collect: (id, collectData) => {
+    const totalCost = collectData.packageCost + collectData.lateFee;
+    let billingStatus = 'Closed';
+
+    if (collectData.amountPaid < totalCost) {
+      billingStatus = 'Partial';
+    }
+
+    const stmt = db.prepare(`
+      UPDATE shipment_items
+      SET payment_method = ?, amount_paid = amount_paid + ?, late_fee = ?,
+          billing_notes = ?, billing_status = ?, collection_date = datetime('now'),
+          collected_by = ?, date_updated = datetime('now'), updated_by = ?
+      WHERE id = ?
+    `);
+    return stmt.run(
+      collectData.paymentMethod,
+      collectData.amountPaid,
+      collectData.lateFee,
+      collectData.notes || null,
+      billingStatus,
+      collectData.collectedBy,
+      collectData.collectedBy,
+      id
+    );
+  },
+
+  // Update billing status
+  updateBillingStatus: (id, status, updatedBy) => {
+    const stmt = db.prepare(`
+      UPDATE shipment_items
+      SET billing_status = ?, date_updated = datetime('now'), updated_by = ?
+      WHERE id = ?
+    `);
+    return stmt.run(status, updatedBy, id);
+  },
+
+  // Calculate and update late fee
+  updateLateFee: (id) => {
+    const item = db.prepare('SELECT * FROM shipment_items WHERE id = ?').get(id);
+
+    if (!item || !item.bill_date) {
+      return null;
+    }
+
+    const billDate = new Date(item.bill_date);
+    const now = new Date();
+    const daysDiff = Math.floor((now - billDate) / (1000 * 60 * 60 * 24));
+
+    // Start charging $50/day after 7 days
+    const lateFee = daysDiff > 7 ? (daysDiff - 7) * 50 : 0;
+
+    const stmt = db.prepare(`
+      UPDATE shipment_items
+      SET late_fee = ?
+      WHERE id = ?
+    `);
+    return stmt.run(lateFee, id);
+  },
+
+  // Edit billing item details
+  editBillingItem: (id, data) => {
+    const stmt = db.prepare(`
+      UPDATE shipment_items
+      SET
+        customer_name = ?,
+        alt_name = ?,
+        weight = ?,
+        custom_fee = ?,
+        processing_fee = ?,
+        package_cost = ?,
+        late_fee = ?,
+        payment_method = ?,
+        billing_notes = ?,
+        date_updated = datetime('now'),
+        updated_by = ?
+      WHERE id = ?
+    `);
+    return stmt.run(
+      data.customerName,
+      data.altName,
+      data.weight,
+      data.customFee,
+      data.processingFee,
+      data.packageCost,
+      data.lateFee,
+      data.paymentMethod,
+      data.billingNotes,
+      data.updatedBy,
+      id
+    );
   },
 
   moveToLog: (id, newLogId) => {

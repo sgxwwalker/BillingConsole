@@ -2,8 +2,15 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import https from 'https';
 import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { parse } from 'csv-parse/sync';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import {
   initDatabase,
   seedDatabase,
@@ -31,8 +38,46 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+const profilePhotosDir = path.join(uploadsDir, 'profile-photos');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+if (!fs.existsSync(profilePhotosDir)) {
+  fs.mkdirSync(profilePhotosDir, { recursive: true });
+}
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(uploadsDir));
+
 // Configure multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Configure multer for profile photo uploads
+const profilePhotoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, profilePhotosDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `profile-${req.params.id}-${uniqueSuffix}${ext}`);
+  }
+});
+
+const profilePhotoUpload = multer({
+  storage: profilePhotoStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.'));
+    }
+  }
+});
 
 // Initialize database
 initDatabase();
@@ -98,6 +143,86 @@ app.delete('/api/users/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// Update user profile (with photo upload)
+app.put('/api/users/:id/profile', profilePhotoUpload.single('photo'), (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, phone, job_title, department, photo_url } = req.body;
+
+    // Get current user to check for existing photo
+    const currentUser = userQueries.getById(id);
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Determine photo URL
+    let photoUrl = currentUser.photo;
+    if (req.file) {
+      // New photo uploaded - delete old file if it exists and is a local file
+      if (currentUser.photo && currentUser.photo.startsWith('/uploads/')) {
+        const oldPhotoPath = path.join(__dirname, currentUser.photo);
+        if (fs.existsSync(oldPhotoPath)) {
+          fs.unlinkSync(oldPhotoPath);
+        }
+      }
+      photoUrl = `/uploads/profile-photos/${req.file.filename}`;
+    } else if (photo_url !== undefined) {
+      photoUrl = photo_url || null;
+    }
+
+    // Update user profile
+    userQueries.updateProfile(id, {
+      name,
+      email,
+      phone: phone || null,
+      job_title: job_title || null,
+      department: department || null,
+      photo: photoUrl
+    });
+
+    // Get updated user
+    const updatedUser = userQueries.getById(id);
+
+    res.json({
+      success: true,
+      user: {
+        ...updatedUser,
+        customPermissions: updatedUser.custom_permissions ? JSON.parse(updatedUser.custom_permissions) : null,
+      }
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// Change user password
+app.post('/api/users/:id/change-password', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { currentPassword, newPassword } = req.body;
+
+    // Get current user
+    const user = userQueries.getById(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify current password
+    if (user.password !== currentPassword) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    // Update password
+    userQueries.updatePassword(id, newPassword);
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 
@@ -1095,6 +1220,247 @@ app.delete('/api/not-found-scans/:id', (req, res) => {
   }
 });
 
+// ==================== BILLING CONSOLE ENDPOINTS ====================
+
+// Search shipment items for billing console
+app.get('/api/billing/search', (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query || query.trim() === '') {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    const items = shipmentItemQueries.search(query.trim());
+    res.json({ success: true, items });
+  } catch (error) {
+    console.error('Error searching billing items:', error);
+    res.status(500).json({ error: 'Failed to search billing items' });
+  }
+});
+
+// Get all billing items
+app.get('/api/billing/items', (req, res) => {
+  try {
+    const items = shipmentItemQueries.getBillingItems();
+    res.json({ success: true, items });
+  } catch (error) {
+    console.error('Error fetching billing items:', error);
+    res.status(500).json({ error: 'Failed to fetch billing items' });
+  }
+});
+
+// Get billing stats
+app.get('/api/billing/stats', (req, res) => {
+  try {
+    const stats = shipmentItemQueries.getBillingStats();
+    res.json({ success: true, stats });
+  } catch (error) {
+    console.error('Error fetching billing stats:', error);
+    res.status(500).json({ error: 'Failed to fetch billing stats' });
+  }
+});
+
+// Get billing item details by ID
+app.get('/api/billing/items/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const item = shipmentItemQueries.getByTracking(id);
+
+    if (!item || item.length === 0) {
+      return res.status(404).json({ error: 'Billing item not found' });
+    }
+
+    res.json({ success: true, item: item[0] });
+  } catch (error) {
+    console.error('Error fetching billing item:', error);
+    res.status(500).json({ error: 'Failed to fetch billing item' });
+  }
+});
+
+// Bill a shipment item
+app.post('/api/billing/bill/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customFee, processingFee, packageCost, billedBy } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Item ID is required' });
+    }
+
+    shipmentItemQueries.bill(id, {
+      customFee: parseFloat(customFee) || 0,
+      processingFee: parseFloat(processingFee) || 0,
+      packageCost: parseFloat(packageCost) || 0,
+      billedBy: billedBy || 'System',
+    });
+
+    res.json({
+      success: true,
+      message: 'Item billed successfully',
+    });
+  } catch (error) {
+    console.error('Error billing item:', error);
+    res.status(500).json({ error: 'Failed to bill item' });
+  }
+});
+
+// Collect payment for a shipment item
+app.post('/api/billing/collect/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paymentMethod, amountPaid, lateFee, notes, collectedBy } = req.body;
+
+    if (!id || !paymentMethod || amountPaid === undefined) {
+      return res.status(400).json({ error: 'Item ID, payment method, and amount paid are required' });
+    }
+
+    // Get current item to calculate total
+    const currentItem = shipmentItemQueries.getById(id);
+    if (!currentItem) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const packageCost = (currentItem.custom_fee || 0) + (currentItem.processing_fee || 0) + (currentItem.package_cost || 0);
+
+    shipmentItemQueries.collect(currentItem.id, {
+      paymentMethod,
+      amountPaid: parseFloat(amountPaid),
+      lateFee: parseFloat(lateFee) || 0,
+      notes: notes || null,
+      collectedBy: collectedBy || 'System',
+      packageCost,
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment collected successfully',
+    });
+  } catch (error) {
+    console.error('Error collecting payment:', error);
+    res.status(500).json({ error: 'Failed to collect payment' });
+  }
+});
+
+// Update billing status
+app.patch('/api/billing/status/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, updatedBy } = req.body;
+
+    if (!id || !status) {
+      return res.status(400).json({ error: 'Item ID and status are required' });
+    }
+
+    if (!['Open', 'Closed', 'Partial', 'unbilled'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
+    shipmentItemQueries.updateBillingStatus(id, status, updatedBy || 'System');
+
+    res.json({
+      success: true,
+      message: 'Billing status updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating billing status:', error);
+    res.status(500).json({ error: 'Failed to update billing status' });
+  }
+});
+
+// Calculate and update late fee for an item
+app.post('/api/billing/late-fee/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Item ID is required' });
+    }
+
+    const result = shipmentItemQueries.updateLateFee(id);
+
+    if (!result) {
+      return res.status(404).json({ error: 'Item not found or not billed yet' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Late fee updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating late fee:', error);
+    res.status(500).json({ error: 'Failed to update late fee' });
+  }
+});
+
+// Bulk update late fees for all billed items
+app.post('/api/billing/late-fees/bulk-update', (req, res) => {
+  try {
+    const billedItems = shipmentItemQueries.getBillingItems();
+    let updatedCount = 0;
+
+    for (const item of billedItems) {
+      if (item.bill_date) {
+        shipmentItemQueries.updateLateFee(item.id);
+        updatedCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Late fees updated for ${updatedCount} items`,
+      updatedCount,
+    });
+  } catch (error) {
+    console.error('Error bulk updating late fees:', error);
+    res.status(500).json({ error: 'Failed to bulk update late fees' });
+  }
+});
+
+// Edit billing item details
+app.put('/api/billing/edit/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      customerName,
+      altName,
+      weight,
+      customFee,
+      processingFee,
+      packageCost,
+      lateFee,
+      paymentMethod,
+      billingNotes,
+      updatedBy
+    } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Item ID is required' });
+    }
+
+    shipmentItemQueries.editBillingItem(id, {
+      customerName,
+      altName,
+      weight: parseFloat(weight) || 0,
+      customFee: parseFloat(customFee) || 0,
+      processingFee: parseFloat(processingFee) || 0,
+      packageCost: parseFloat(packageCost) || 0,
+      lateFee: parseFloat(lateFee) || 0,
+      paymentMethod: paymentMethod || null,
+      billingNotes: billingNotes || null,
+      updatedBy: updatedBy || 'System',
+    });
+
+    res.json({
+      success: true,
+      message: 'Billing item updated successfully',
+    });
+  } catch (error) {
+    console.error('Error editing billing item:', error);
+    res.status(500).json({ error: 'Failed to edit billing item' });
+  }
+});
+
 // ==================== ROLES ENDPOINTS ====================
 
 // Get all roles
@@ -1330,6 +1696,12 @@ app.post('/api/settings/api-config/test', async (req, res) => {
     }
 
     // Test authentication with the Courier Depot API
+    // Configure HTTPS agent for proxy and SSL support
+    const httpsAgent = new https.Agent({
+      rejectUnauthorized: false, // Accept self-signed certificates if needed
+    });
+
+    // Axios will automatically use HTTP_PROXY and HTTPS_PROXY environment variables
     const response = await axios.post(`${config.base_url}/api/auth/signin`, {
       email: config.email,
       password: config.password,
@@ -1338,6 +1710,8 @@ app.post('/api/settings/api-config/test', async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
       },
+      httpsAgent,
+      proxy: false, // Let environment variables handle proxy
     });
 
     // Check if authentication was successful
