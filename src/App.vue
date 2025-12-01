@@ -697,8 +697,15 @@
                 <td>
                   <div class="actions">
                     <button class="pill secondary" type="button" @click="markOrderReceived(order)" :disabled="!currentUser">Received</button>
-                    <button class="pill ghost" type="button" @click="openOrderEdit(order)" :disabled="!currentUser || !can('manageOrders')">Edit</button>
-                    <button class="pill danger" type="button" @click="openOrderDelete(order.id)" :disabled="!currentUser || !can('manageOrders')">Delete</button>
+                    <div class="kebab-menu-container">
+                      <button class="kebab-btn" @click="toggleOrderKebab(order.id)" type="button" aria-label="More actions">
+                        <span class="kebab-dots"><span></span></span>
+                      </button>
+                      <div v-if="openOrderKebabId === order.id" class="kebab-dropdown">
+                        <button @click="openOrderEdit(order); closeOrderKebab()" :disabled="!currentUser || !can('manageOrders')">Edit</button>
+                        <button class="danger" @click="openOrderDelete(order.id); closeOrderKebab()" :disabled="!currentUser || !can('manageOrders')">Delete</button>
+                      </div>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -1396,40 +1403,8 @@
           </div>
         </div>
 
-        <!-- Notification Preferences -->
-        <div class="card" v-if="activeSettingsTab === 'notifications'">
-          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Notification Preferences</h3>
-            <p class="muted">Configure how you want to receive notifications</p>
-          </div>
-
-          <div class="form-grid">
-            <label class="toggle-row">
-              <input type="checkbox" v-model="settings.notifyEmail" />
-              <div>
-                <strong>Email notifications</strong>
-                <p class="muted">Send a receipt copy to my inbox.</p>
-              </div>
-            </label>
-            <label class="toggle-row">
-              <input type="checkbox" v-model="settings.notifySms" />
-              <div>
-                <strong>SMS notifications</strong>
-                <p class="muted">Send handoff confirmation via SMS.</p>
-              </div>
-            </label>
-            <label class="toggle-row">
-              <input type="checkbox" v-model="settings.notifyDesktop" />
-              <div>
-                <strong>Desktop alerts</strong>
-                <p class="muted">Show desktop alerts for new ready packages.</p>
-              </div>
-            </label>
-          </div>
-        </div>
-
         <!-- Toast Notification Settings -->
-        <div class="card" v-if="activeSettingsTab === 'notifications'" style="margin-top: 24px;">
+        <div class="card" v-if="activeSettingsTab === 'notifications'">
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
             <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Toast Notification Settings</h3>
             <p class="muted">Create, edit, and test toast notification templates</p>
@@ -4159,6 +4134,7 @@ const billingEditForm = reactive({
 
 const openBillingKebabId = ref(null);
 const openBLStatusDropdownId = ref(null);
+const openOrderKebabId = ref(null);
 
 const collectionForm = reactive({
   amount: "",
@@ -5596,6 +5572,18 @@ const closeBillingKebab = () => {
   openBillingKebabId.value = null;
 };
 
+const toggleOrderKebab = (id) => {
+  if (openOrderKebabId.value === id) {
+    openOrderKebabId.value = null;
+  } else {
+    openOrderKebabId.value = id;
+  }
+};
+
+const closeOrderKebab = () => {
+  openOrderKebabId.value = null;
+};
+
 const updateBillingStatus = async (item, status) => {
   try {
     const response = await fetch(`http://localhost:4000/api/billing/status/${item.id}`, {
@@ -5792,6 +5780,7 @@ const handleClickOutside = (event) => {
   if (!event.target.closest('.bl-status-dropdown') && !event.target.closest('.kebab-menu-container')) {
     openBLStatusDropdownId.value = null;
     openBillingKebabId.value = null;
+    openOrderKebabId.value = null;
   }
 };
 
@@ -8155,22 +8144,27 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .bl-status-btn .chevron {
-  font-size: 10px;
+  font-size: 8px;
   transition: transform 0.15s ease;
+  opacity: 0.7;
 }
 
 .bl-status-btn:hover .chevron {
   transform: translateY(1px);
+  opacity: 1;
 }
 
 .bl-status-btn.bl-unbilled {
