@@ -903,4 +903,68 @@ export const apiSyncLogQueries = {
   },
 };
 
+// Delivery request queries
+export const deliveryRequestQueries = {
+  getAll: () => db.prepare('SELECT * FROM delivery_requests ORDER BY created_at DESC').all(),
+
+  getById: (id) => db.prepare('SELECT * FROM delivery_requests WHERE id = ?').get(id),
+
+  getByStatus: (status) => db.prepare('SELECT * FROM delivery_requests WHERE status = ? ORDER BY scheduled_date ASC').all(status),
+
+  create: (request) => {
+    const stmt = db.prepare(`
+      INSERT INTO delivery_requests (
+        customer_name, customer_phone, address, package_count,
+        scheduled_date, delivery_cost, payment_type, status, notes, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      request.customerName,
+      request.customerPhone,
+      request.address,
+      request.packageCount || 1,
+      request.scheduledDate,
+      request.deliveryCost || 0,
+      request.paymentType || 'Cash On Delivery',
+      request.status || 'Pending',
+      request.notes || null,
+      request.createdBy || null
+    );
+  },
+
+  update: (id, request) => {
+    const stmt = db.prepare(`
+      UPDATE delivery_requests
+      SET customer_name = ?, customer_phone = ?, address = ?, package_count = ?,
+          scheduled_date = ?, delivery_cost = ?, payment_type = ?, status = ?,
+          notes = ?, updated_by = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `);
+    return stmt.run(
+      request.customerName,
+      request.customerPhone,
+      request.address,
+      request.packageCount,
+      request.scheduledDate,
+      request.deliveryCost,
+      request.paymentType,
+      request.status,
+      request.notes || null,
+      request.updatedBy || null,
+      id
+    );
+  },
+
+  updateStatus: (id, status, updatedBy) => {
+    const stmt = db.prepare(`
+      UPDATE delivery_requests
+      SET status = ?, updated_by = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `);
+    return stmt.run(status, updatedBy, id);
+  },
+
+  delete: (id) => db.prepare('DELETE FROM delivery_requests WHERE id = ?').run(id),
+};
+
 export default db;

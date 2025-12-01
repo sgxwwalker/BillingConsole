@@ -220,6 +220,24 @@ CREATE TABLE IF NOT EXISTS not_found_scans (
     FOREIGN KEY (shipment_log_id) REFERENCES shipment_logs(id) ON DELETE CASCADE
 );
 
+-- Delivery Requests Table
+CREATE TABLE IF NOT EXISTS delivery_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_name TEXT NOT NULL,
+    customer_phone TEXT NOT NULL,
+    address TEXT NOT NULL,
+    package_count INTEGER NOT NULL DEFAULT 1,
+    scheduled_date DATE NOT NULL,
+    delivery_cost REAL NOT NULL DEFAULT 0,
+    payment_type TEXT NOT NULL DEFAULT 'Cash On Delivery',
+    status TEXT NOT NULL DEFAULT 'Pending',
+    notes TEXT,
+    created_by TEXT,
+    updated_by TEXT,
+    created_at DATETIME DEFAULT (datetime('now')),
+    updated_at DATETIME DEFAULT (datetime('now'))
+);
+
 -- Indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_packages_customer_id ON packages(customer_id);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);

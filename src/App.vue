@@ -65,6 +65,7 @@
           <button v-if="pageVisibility.packages.enabled" class="top-link" :class="{ active: currentPage === 'packages' }" @click="goTo('packages')">Packages</button>
           <button v-if="pageVisibility['shipment-bin'].enabled" class="top-link" :class="{ active: currentPage === 'shipment-bin' }" @click="goTo('shipment-bin')">Shipment Bin</button>
           <button v-if="pageVisibility.orders.enabled" class="top-link" :class="{ active: currentPage === 'orders' }" @click="goTo('orders')">SGX Order</button>
+          <button v-if="pageVisibility['delivery-requests'].enabled" class="top-link" :class="{ active: currentPage === 'delivery-requests' }" @click="goTo('delivery-requests')">Delivery Request</button>
           <button v-if="pageVisibility.summary.enabled" class="top-link" :class="{ active: currentPage === 'summary' }" @click="goTo('summary')">Daily Summary</button>
           <button v-if="isAdmin" class="top-link" :class="{ active: currentPage === 'settings' }" @click="goTo('settings')">Settings</button>
         </nav>
@@ -781,6 +782,269 @@
           </div>
         </div>
       </section>
+
+      <!-- Delivery Requests Section -->
+      <section v-if="currentPage === 'delivery-requests'" class="panel full-page" id="delivery-requests">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Delivery Management</p>
+            <h2>Delivery Requests</h2>
+          </div>
+        </div>
+
+        <div class="delivery-controls">
+          <div class="search-box compact">
+            <label class="input-label" for="deliverySearch">Search</label>
+            <div class="input-shell">
+              <input
+                id="deliverySearch"
+                type="text"
+                placeholder="Search customer or address"
+                v-model="deliverySearchQuery"
+              />
+            </div>
+          </div>
+          <div class="action-group gap-3">
+            <select v-model="deliveryStatusFilter" class="status-filter-select">
+              <option value="">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="In Transit">In Transit</option>
+              <option value="Delivered">Delivered</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+            <button class="pill small" type="button" @click="openDeliveryAdd" :disabled="!currentUser || !can('manageOrders')">Add Request</button>
+            <button class="pill danger small" type="button" @click="bulkDeleteDeliveryRequests" :disabled="!currentUser || !selectedDeliveryIds.length || !can('manageOrders')">Bulk Delete</button>
+          </div>
+        </div>
+
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th><input type="checkbox" :checked="selectedDeliveryIds.length && filteredDeliveryRequests.length && selectedDeliveryIds.length === filteredDeliveryRequests.length" @change="toggleAllDeliveries" /></th>
+                <th>Customer</th>
+                <th>Phone</th>
+                <th>Address</th>
+                <th>Packages</th>
+                <th>Scheduled Date</th>
+                <th>Cost</th>
+                <th>Payment</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Loading Skeleton -->
+              <template v-if="loadingDeliveryRequests">
+                <tr v-for="i in 5" :key="'skeleton-' + i" class="skeleton-row">
+                  <td><div class="skeleton skeleton-cell checkbox"></div></td>
+                  <td><div class="skeleton skeleton-cell medium"></div></td>
+                  <td><div class="skeleton skeleton-cell short"></div></td>
+                  <td><div class="skeleton skeleton-cell long"></div></td>
+                  <td><div class="skeleton skeleton-cell short"></div></td>
+                  <td><div class="skeleton skeleton-cell short"></div></td>
+                  <td><div class="skeleton skeleton-cell short"></div></td>
+                  <td><div class="skeleton skeleton-cell short"></div></td>
+                  <td><div class="skeleton skeleton-cell tag"></div></td>
+                  <td><div class="skeleton skeleton-cell button"></div></td>
+                </tr>
+              </template>
+              <!-- Empty State -->
+              <tr v-else-if="!filteredDeliveryRequests.length && !loadingDeliveryRequests" class="empty">
+                <td colspan="10">No delivery requests yet.</td>
+              </tr>
+              <!-- Request Rows -->
+              <tr v-else v-for="request in paginatedDeliveryRequests" :key="request.id">
+                <td><input type="checkbox" :checked="selectedDeliveryIds.includes(request.id)" @change="toggleDeliverySelection(request.id)" /></td>
+                <td>{{ request.customerName }}</td>
+                <td>{{ request.customerPhone }}</td>
+                <td class="address-cell">{{ request.address }}</td>
+                <td>{{ request.packageCount }}</td>
+                <td>{{ request.scheduledDate }}</td>
+                <td>{{ formatCurrency(request.deliveryCost) }}</td>
+                <td>
+                  <span class="payment-badge" :class="request.paymentType === 'Cash On Delivery' ? 'cod' : 'transfer'">
+                    {{ request.paymentType }}
+                  </span>
+                </td>
+                <td>
+                  <span class="tag" :class="{
+                    'secondary': request.status === 'Pending',
+                    'info': request.status === 'Scheduled',
+                    'warning': request.status === 'In Transit',
+                    'success': request.status === 'Delivered',
+                    'danger': request.status === 'Cancelled'
+                  }">{{ request.status }}</span>
+                </td>
+                <td>
+                  <div class="actions">
+                    <div class="kebab-menu-container">
+                      <button class="kebab-btn" @click="toggleDeliveryKebab(request.id)" type="button" aria-label="More actions">
+                        <span class="kebab-dots"><span></span></span>
+                      </button>
+                      <div v-if="openDeliveryKebabId === request.id" class="kebab-dropdown">
+                        <button @click="openDeliveryEdit(request); closeDeliveryKebab()" :disabled="!currentUser || !can('manageOrders')">Edit</button>
+                        <button @click="openDeliveryStatusUpdate(request); closeDeliveryKebab()" :disabled="!currentUser || !can('manageOrders')">Update Status</button>
+                        <button class="danger" @click="openDeliveryDelete(request.id); closeDeliveryKebab()" :disabled="!currentUser || !can('manageOrders')">Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <!-- Delivery Requests Pagination -->
+          <div class="orders-pagination">
+            <div class="pagination-info">
+              <template v-if="allFilteredDeliveryRequests.length > 0">
+                Showing {{ ((deliveryCurrentPage - 1) * deliveryPerPage) + 1 }} - {{ Math.min(deliveryCurrentPage * deliveryPerPage, allFilteredDeliveryRequests.length) }} of {{ allFilteredDeliveryRequests.length }} requests
+              </template>
+              <template v-else>
+                No requests to display
+              </template>
+            </div>
+            <div class="pagination-controls">
+              <button class="pagination-btn" @click="deliveryCurrentPage = 1" :disabled="deliveryCurrentPage === 1 || deliveryTotalPages <= 1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+              </button>
+              <button class="pagination-btn" @click="deliveryCurrentPage--" :disabled="deliveryCurrentPage === 1 || deliveryTotalPages <= 1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <template v-if="deliveryTotalPages > 0">
+                <template v-for="page in deliveryTotalPages" :key="page">
+                  <button
+                    v-if="page === 1 || page === deliveryTotalPages || (page >= deliveryCurrentPage - 1 && page <= deliveryCurrentPage + 1)"
+                    class="pagination-btn"
+                    :class="{ active: page === deliveryCurrentPage }"
+                    @click="deliveryCurrentPage = page"
+                  >
+                    {{ page }}
+                  </button>
+                  <span v-else-if="page === deliveryCurrentPage - 2 || page === deliveryCurrentPage + 2" style="color: var(--text-muted);">...</span>
+                </template>
+              </template>
+              <button v-else class="pagination-btn active" disabled>1</button>
+              <button class="pagination-btn" @click="deliveryCurrentPage++" :disabled="deliveryCurrentPage >= deliveryTotalPages || deliveryTotalPages <= 1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+              <button class="pagination-btn" @click="deliveryCurrentPage = deliveryTotalPages" :disabled="deliveryCurrentPage >= deliveryTotalPages || deliveryTotalPages <= 1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
+              </button>
+            </div>
+            <div class="per-page-select">
+              <span>Per page:</span>
+              <select v-model="deliveryPerPage" @change="deliveryCurrentPage = 1">
+                <option :value="5">5</option>
+                <option :value="10">10</option>
+                <option :value="25">25</option>
+                <option :value="50">50</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Add/Edit Delivery Request Modal -->
+      <BaseModal
+        v-model="showDeliveryModal"
+        :title="editingDelivery ? 'Edit Delivery Request' : 'Add Delivery Request'"
+        size="medium"
+        @close="closeDeliveryModal"
+      >
+        <form @submit.prevent="saveDeliveryRequest">
+          <div class="form-grid">
+            <label>
+              <span class="input-label">Customer Name *</span>
+              <input v-model="deliveryForm.customerName" type="text" required placeholder="Enter customer name" />
+            </label>
+            <label>
+              <span class="input-label">Phone Number *</span>
+              <input v-model="deliveryForm.customerPhone" type="tel" required placeholder="Enter phone number" />
+            </label>
+            <label class="full-width">
+              <span class="input-label">Address *</span>
+              <textarea v-model="deliveryForm.address" required placeholder="Enter delivery address" rows="2"></textarea>
+            </label>
+            <label>
+              <span class="input-label">Package Count</span>
+              <input v-model.number="deliveryForm.packageCount" type="number" min="1" placeholder="1" />
+            </label>
+            <label>
+              <span class="input-label">Scheduled Date *</span>
+              <input v-model="deliveryForm.scheduledDate" type="date" required />
+            </label>
+            <label>
+              <span class="input-label">Delivery Cost</span>
+              <input v-model.number="deliveryForm.deliveryCost" type="number" min="0" step="0.01" placeholder="0.00" />
+            </label>
+            <label>
+              <span class="input-label">Payment Type</span>
+              <select v-model="deliveryForm.paymentType">
+                <option value="Cash On Delivery">Cash On Delivery</option>
+                <option value="Transfer">Transfer</option>
+              </select>
+            </label>
+            <label v-if="editingDelivery">
+              <span class="input-label">Status</span>
+              <select v-model="deliveryForm.status">
+                <option value="Pending">Pending</option>
+                <option value="Scheduled">Scheduled</option>
+                <option value="In Transit">In Transit</option>
+                <option value="Delivered">Delivered</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label class="full-width">
+              <span class="input-label">Notes</span>
+              <textarea v-model="deliveryForm.notes" placeholder="Additional notes (optional)" rows="2"></textarea>
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="pill ghost" @click="closeDeliveryModal">Cancel</button>
+            <button type="submit" class="pill">{{ editingDelivery ? 'Update' : 'Add' }} Request</button>
+          </div>
+        </form>
+      </BaseModal>
+
+      <!-- Update Status Modal -->
+      <BaseModal
+        v-model="showDeliveryStatusModal"
+        title="Update Delivery Status"
+        size="small"
+      >
+        <form @submit.prevent="updateDeliveryStatus">
+          <div class="form-grid">
+            <label class="full-width">
+              <span class="input-label">New Status</span>
+              <select v-model="deliveryStatusForm.status" required>
+                <option value="Pending">Pending</option>
+                <option value="Scheduled">Scheduled</option>
+                <option value="In Transit">In Transit</option>
+                <option value="Delivered">Delivered</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="pill ghost" @click="showDeliveryStatusModal = false">Cancel</button>
+            <button type="submit" class="pill">Update Status</button>
+          </div>
+        </form>
+      </BaseModal>
+
+      <!-- Delete Confirmation Modal -->
+      <BaseModal
+        v-model="showDeliveryDeleteModal"
+        title="Delete Delivery Request"
+        size="small"
+      >
+        <p style="margin-bottom: 20px;">Are you sure you want to delete this delivery request? This action cannot be undone.</p>
+        <div class="modal-actions">
+          <button type="button" class="pill ghost" @click="showDeliveryDeleteModal = false">Cancel</button>
+          <button type="button" class="pill danger" @click="confirmDeleteDelivery">Delete</button>
+        </div>
+      </BaseModal>
 
       <section v-if="currentPage === 'api'" class="panel full-page" id="api">
         <div class="panel-head">
@@ -3755,6 +4019,7 @@ import settingsIcon from "./assets/settings.png";
 import shoppingCartIcon from "./assets/shopping-cart.png";
 import planeIcon from "./assets/plane-alt.png";
 import shipIcon from "./assets/ship.png";
+import { BaseModal } from "@/components";
 
 const employees = reactive([
   { id: "emp-0", name: "Warren Walker", email: "warren@sgxpress.com", password: "admin123", photo: "", location: "", role: "full_control", customPermissions: null, active: 1, lastLogin: "2025-11-27 20:45:00" },
@@ -4132,6 +4397,7 @@ const pageVisibility = reactive({
   packages: { enabled: true, label: 'Packages', description: 'Package management and tracking' },
   'shipment-bin': { enabled: true, label: 'Shipment Bin', description: 'Shipment bin management and logs' },
   orders: { enabled: true, label: 'SGX Order', description: 'Customer orders management' },
+  'delivery-requests': { enabled: true, label: 'Delivery Request', description: 'Customer delivery requests management' },
   summary: { enabled: true, label: 'Daily Summary', description: 'Daily summary reports and analytics' }
 });
 
@@ -4482,6 +4748,36 @@ const orderModals = reactive({ add: false, edit: false, delete: false });
 // ==================== ORDERS PAGINATION STATE ====================
 const ordersCurrentPage = ref(1);
 const ordersPerPage = ref(10);
+
+// ==================== DELIVERY REQUESTS STATE ====================
+const deliveryRequests = ref([]);
+const deliverySearchQuery = ref('');
+const deliveryStatusFilter = ref('');
+const deliveryCurrentPage = ref(1);
+const deliveryPerPage = ref(10);
+const selectedDeliveryIds = ref([]);
+const openDeliveryKebabId = ref(null);
+const loadingDeliveryRequests = ref(false);
+const showDeliveryModal = ref(false);
+const showDeliveryStatusModal = ref(false);
+const showDeliveryDeleteModal = ref(false);
+const editingDelivery = ref(null);
+const deliveryToDelete = ref(null);
+const deliveryForm = reactive({
+  customerName: '',
+  customerPhone: '',
+  address: '',
+  packageCount: 1,
+  scheduledDate: '',
+  deliveryCost: 0,
+  paymentType: 'Cash On Delivery',
+  status: 'Pending',
+  notes: ''
+});
+const deliveryStatusForm = reactive({
+  id: null,
+  status: 'Pending'
+});
 
 // ==================== LOADING STATES ====================
 const loadingOrders = ref(false);
@@ -4865,6 +5161,45 @@ watch(ordersSearch, () => {
   ordersCurrentPage.value = 1;
 });
 
+// ==================== DELIVERY REQUESTS COMPUTED ====================
+const allFilteredDeliveryRequests = computed(() => {
+  let filtered = deliveryRequests.value;
+
+  // Filter by status
+  if (deliveryStatusFilter.value) {
+    filtered = filtered.filter(r => r.status === deliveryStatusFilter.value);
+  }
+
+  // Filter by search query
+  const q = deliverySearchQuery.value.trim().toLowerCase();
+  if (q) {
+    filtered = filtered.filter(r =>
+      (r.customerName || '').toLowerCase().includes(q) ||
+      (r.customerPhone || '').toLowerCase().includes(q) ||
+      (r.address || '').toLowerCase().includes(q)
+    );
+  }
+
+  return filtered;
+});
+
+const deliveryTotalPages = computed(() => {
+  return Math.ceil(allFilteredDeliveryRequests.value.length / deliveryPerPage.value);
+});
+
+const paginatedDeliveryRequests = computed(() => {
+  const start = (deliveryCurrentPage.value - 1) * deliveryPerPage.value;
+  const end = start + deliveryPerPage.value;
+  return allFilteredDeliveryRequests.value.slice(start, end);
+});
+
+const filteredDeliveryRequests = computed(() => paginatedDeliveryRequests.value);
+
+// Reset page when filters change
+watch([deliverySearchQuery, deliveryStatusFilter], () => {
+  deliveryCurrentPage.value = 1;
+});
+
 const visiblePackages = computed(() => {
   if (!activeCustomer.value) return [];
   return activeCustomer.value.packages.filter((pkg) => {
@@ -5021,9 +5356,9 @@ const can = (perm) => {
 const hasPermission = can; // Alias for template usage
 const isAdmin = computed(() => can('admin'));
 const allowedPages = computed(() => {
-  if (isAdmin.value) return ["dashboard", "shipment-bin", "orders", "packages", "summary", "api", "profile", "settings", "admin"];
-  if (currentRole.value === "editor") return ["dashboard", "shipment-bin", "orders", "packages", "summary", "profile"];
-  return ["dashboard", "shipment-bin", "summary", "profile", "orders", "packages"];
+  if (isAdmin.value) return ["dashboard", "shipment-bin", "orders", "delivery-requests", "packages", "summary", "api", "profile", "settings", "admin"];
+  if (currentRole.value === "editor") return ["dashboard", "shipment-bin", "orders", "delivery-requests", "packages", "summary", "profile"];
+  return ["dashboard", "shipment-bin", "summary", "profile", "orders", "delivery-requests", "packages"];
 });
 
 const dailySummary = computed(() => {
@@ -7909,6 +8244,209 @@ const loadOrders = async () => {
   }
 };
 
+// ==================== DELIVERY REQUESTS FUNCTIONS ====================
+const loadDeliveryRequests = async () => {
+  loadingDeliveryRequests.value = true;
+  try {
+    const response = await fetch('http://localhost:4000/api/delivery-requests');
+    const data = await response.json();
+    if (data.success && Array.isArray(data.requests)) {
+      deliveryRequests.value = data.requests;
+    }
+  } catch (error) {
+    console.error('Error loading delivery requests:', error);
+  } finally {
+    loadingDeliveryRequests.value = false;
+  }
+};
+
+const toggleDeliveryKebab = (id) => {
+  openDeliveryKebabId.value = openDeliveryKebabId.value === id ? null : id;
+};
+
+const closeDeliveryKebab = () => {
+  openDeliveryKebabId.value = null;
+};
+
+const toggleDeliverySelection = (id) => {
+  const index = selectedDeliveryIds.value.indexOf(id);
+  if (index > -1) {
+    selectedDeliveryIds.value.splice(index, 1);
+  } else {
+    selectedDeliveryIds.value.push(id);
+  }
+};
+
+const toggleAllDeliveries = () => {
+  if (selectedDeliveryIds.value.length === filteredDeliveryRequests.value.length) {
+    selectedDeliveryIds.value = [];
+  } else {
+    selectedDeliveryIds.value = filteredDeliveryRequests.value.map(r => r.id);
+  }
+};
+
+const resetDeliveryForm = () => {
+  deliveryForm.customerName = '';
+  deliveryForm.customerPhone = '';
+  deliveryForm.address = '';
+  deliveryForm.packageCount = 1;
+  deliveryForm.scheduledDate = '';
+  deliveryForm.deliveryCost = 0;
+  deliveryForm.paymentType = 'Cash On Delivery';
+  deliveryForm.status = 'Pending';
+  deliveryForm.notes = '';
+};
+
+const openDeliveryAdd = () => {
+  editingDelivery.value = null;
+  resetDeliveryForm();
+  showDeliveryModal.value = true;
+};
+
+const openDeliveryEdit = (request) => {
+  editingDelivery.value = request;
+  deliveryForm.customerName = request.customerName;
+  deliveryForm.customerPhone = request.customerPhone;
+  deliveryForm.address = request.address;
+  deliveryForm.packageCount = request.packageCount;
+  deliveryForm.scheduledDate = request.scheduledDate;
+  deliveryForm.deliveryCost = request.deliveryCost;
+  deliveryForm.paymentType = request.paymentType;
+  deliveryForm.status = request.status;
+  deliveryForm.notes = request.notes || '';
+  showDeliveryModal.value = true;
+};
+
+const closeDeliveryModal = () => {
+  showDeliveryModal.value = false;
+  editingDelivery.value = null;
+  resetDeliveryForm();
+};
+
+const saveDeliveryRequest = async () => {
+  try {
+    const payload = {
+      customerName: deliveryForm.customerName,
+      customerPhone: deliveryForm.customerPhone,
+      address: deliveryForm.address,
+      packageCount: deliveryForm.packageCount || 1,
+      scheduledDate: deliveryForm.scheduledDate,
+      deliveryCost: deliveryForm.deliveryCost || 0,
+      paymentType: deliveryForm.paymentType,
+      status: deliveryForm.status,
+      notes: deliveryForm.notes,
+      createdBy: currentUser.value?.name,
+      updatedBy: currentUser.value?.name
+    };
+
+    let response;
+    if (editingDelivery.value) {
+      response = await fetch(`http://localhost:4000/api/delivery-requests/${editingDelivery.value.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      response = await fetch('http://localhost:4000/api/delivery-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    const data = await response.json();
+    if (data.success) {
+      closeDeliveryModal();
+      loadDeliveryRequests();
+      showToast(editingDelivery.value ? 'Delivery request updated successfully' : 'Delivery request created successfully', 'success');
+    } else {
+      showToast(data.message || 'Failed to save delivery request', 'error');
+    }
+  } catch (error) {
+    console.error('Error saving delivery request:', error);
+    showToast('Failed to save delivery request', 'error');
+  }
+};
+
+const openDeliveryStatusUpdate = (request) => {
+  deliveryStatusForm.id = request.id;
+  deliveryStatusForm.status = request.status;
+  showDeliveryStatusModal.value = true;
+};
+
+const updateDeliveryStatus = async () => {
+  try {
+    const response = await fetch(`http://localhost:4000/api/delivery-requests/${deliveryStatusForm.id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: deliveryStatusForm.status,
+        updatedBy: currentUser.value?.name
+      })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      showDeliveryStatusModal.value = false;
+      loadDeliveryRequests();
+      showToast('Delivery status updated successfully', 'success');
+    } else {
+      showToast(data.message || 'Failed to update status', 'error');
+    }
+  } catch (error) {
+    console.error('Error updating delivery status:', error);
+    showToast('Failed to update status', 'error');
+  }
+};
+
+const openDeliveryDelete = (id) => {
+  deliveryToDelete.value = id;
+  showDeliveryDeleteModal.value = true;
+};
+
+const confirmDeleteDelivery = async () => {
+  try {
+    const response = await fetch(`http://localhost:4000/api/delivery-requests/${deliveryToDelete.value}`, {
+      method: 'DELETE'
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      showDeliveryDeleteModal.value = false;
+      deliveryToDelete.value = null;
+      loadDeliveryRequests();
+      showToast('Delivery request deleted successfully', 'success');
+    } else {
+      showToast(data.message || 'Failed to delete delivery request', 'error');
+    }
+  } catch (error) {
+    console.error('Error deleting delivery request:', error);
+    showToast('Failed to delete delivery request', 'error');
+  }
+};
+
+const bulkDeleteDeliveryRequests = async () => {
+  if (!selectedDeliveryIds.value.length) return;
+
+  if (!confirm(`Are you sure you want to delete ${selectedDeliveryIds.value.length} delivery request(s)?`)) {
+    return;
+  }
+
+  try {
+    for (const id of selectedDeliveryIds.value) {
+      await fetch(`http://localhost:4000/api/delivery-requests/${id}`, {
+        method: 'DELETE'
+      });
+    }
+    selectedDeliveryIds.value = [];
+    loadDeliveryRequests();
+    showToast('Delivery requests deleted successfully', 'success');
+  } catch (error) {
+    console.error('Error bulk deleting delivery requests:', error);
+    showToast('Failed to delete some delivery requests', 'error');
+  }
+};
+
 onMounted(() => {
   document.addEventListener("click", handleClickAway);
   document.addEventListener("click", handleClickOutside);
@@ -7917,6 +8455,7 @@ onMounted(() => {
   loadBillingStats();
   loadDailySummary();
   loadOrders();
+  loadDeliveryRequests();
   loadPageVisibility();
 });
 
@@ -9082,5 +9621,66 @@ td .tag.danger {
   padding: 8px 12px;
   font-size: 13px;
   border-radius: 8px;
+}
+
+/* Delivery Requests Styles */
+.delivery-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.status-filter-select {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+}
+
+.address-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.payment-badge.cod {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.payment-badge.transfer {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.tag.info {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.tag.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.modal-sm {
+  max-width: 400px;
+}
+
+.full-width {
+  grid-column: 1 / -1;
 }
 </style>
