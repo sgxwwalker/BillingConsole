@@ -2018,6 +2018,64 @@ app.get('/api/settings/maintenance-mode', (req, res) => {
   }
 });
 
+// Get page visibility settings
+app.get('/api/settings/page-visibility', (req, res) => {
+  try {
+    const config = apiConfigQueries.get();
+    let pageVisibility = {
+      dashboard: true,
+      packages: true,
+      'shipment-bin': true,
+      orders: true,
+      summary: true
+    };
+
+    if (config && config.page_visibility) {
+      try {
+        pageVisibility = JSON.parse(config.page_visibility);
+      } catch (e) {
+        console.error('Error parsing page visibility:', e);
+      }
+    }
+
+    res.json({ success: true, pageVisibility });
+  } catch (error) {
+    console.error('Error fetching page visibility:', error);
+    res.status(500).json({ error: 'Failed to fetch page visibility settings' });
+  }
+});
+
+// Update page visibility settings
+app.put('/api/settings/page-visibility', (req, res) => {
+  try {
+    const { pageVisibility } = req.body;
+
+    if (!pageVisibility || typeof pageVisibility !== 'object') {
+      return res.status(400).json({ error: 'Invalid page visibility data' });
+    }
+
+    // Get current config and update page_visibility
+    const config = apiConfigQueries.get();
+    if (config) {
+      db.prepare(`UPDATE api_config SET page_visibility = ? WHERE id = ?`)
+        .run(JSON.stringify(pageVisibility), config.id);
+    } else {
+      // Insert new config with page visibility
+      db.prepare(`INSERT INTO api_config (page_visibility) VALUES (?)`)
+        .run(JSON.stringify(pageVisibility));
+    }
+
+    res.json({
+      success: true,
+      message: 'Page visibility settings saved successfully',
+      pageVisibility
+    });
+  } catch (error) {
+    console.error('Error saving page visibility:', error);
+    res.status(500).json({ error: 'Failed to save page visibility settings' });
+  }
+});
+
 app.listen(port, () => {
   console.log(`\nBackend server running on http://localhost:${port}`);
   console.log('Database: SQLite (shipping.db)');

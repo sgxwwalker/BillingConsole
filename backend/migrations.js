@@ -19,6 +19,9 @@ export function runMigrations() {
     // Add role settings table (Migration 004)
     addRoleSettingsTable();
 
+    // Add page visibility column (Migration 005)
+    addPageVisibilityColumn();
+
     console.log('All migrations completed');
   } catch (error) {
     console.error('Error running migrations:', error);
@@ -227,5 +230,24 @@ function addRoleSettingsTable() {
     }
   } catch (error) {
     console.error('  Error creating role_settings table:', error.message);
+  }
+}
+
+/**
+ * Migration 005: Add page_visibility column to api_config table
+ */
+function addPageVisibilityColumn() {
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(api_config)").all();
+    const columnNames = tableInfo.map(col => col.name);
+
+    if (!columnNames.includes('page_visibility')) {
+      db.exec(`ALTER TABLE api_config ADD COLUMN page_visibility TEXT DEFAULT '{}'`);
+      console.log('  Added page_visibility column to api_config table');
+    } else {
+      console.log('  page_visibility column already exists in api_config');
+    }
+  } catch (error) {
+    console.error('  Error adding page_visibility column:', error.message);
   }
 }

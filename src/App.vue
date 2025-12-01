@@ -61,11 +61,11 @@
           <img :src="logo" alt="SG Xpress Shipping logo" />
         </div>
         <nav class="top-links">
-          <button class="top-link" :class="{ active: currentPage === 'dashboard' }" @click="goTo('dashboard')">Dashboard</button>
-          <button class="top-link" :class="{ active: currentPage === 'packages' }" @click="goTo('packages')">Packages</button>
-          <button class="top-link" :class="{ active: currentPage === 'shipment-bin' }" @click="goTo('shipment-bin')">Shipment Bin</button>
-          <button class="top-link" :class="{ active: currentPage === 'orders' }" @click="goTo('orders')">SGX Order</button>
-          <button class="top-link" :class="{ active: currentPage === 'summary' }" @click="goTo('summary')">Daily Summary</button>
+          <button v-if="pageVisibility.dashboard.enabled" class="top-link" :class="{ active: currentPage === 'dashboard' }" @click="goTo('dashboard')">Dashboard</button>
+          <button v-if="pageVisibility.packages.enabled" class="top-link" :class="{ active: currentPage === 'packages' }" @click="goTo('packages')">Packages</button>
+          <button v-if="pageVisibility['shipment-bin'].enabled" class="top-link" :class="{ active: currentPage === 'shipment-bin' }" @click="goTo('shipment-bin')">Shipment Bin</button>
+          <button v-if="pageVisibility.orders.enabled" class="top-link" :class="{ active: currentPage === 'orders' }" @click="goTo('orders')">SGX Order</button>
+          <button v-if="pageVisibility.summary.enabled" class="top-link" :class="{ active: currentPage === 'summary' }" @click="goTo('summary')">Daily Summary</button>
           <button v-if="isAdmin" class="top-link" :class="{ active: currentPage === 'settings' }" @click="goTo('settings')">Settings</button>
         </nav>
       </div>
@@ -139,6 +139,7 @@
           <div class="action-group">
             <select v-model="billingStatusFilter" class="billing-filter-select">
               <option value="all">All BL Status</option>
+              <option value="show_all">Show All (incl. Closed)</option>
               <option value="unbilled">Unbilled</option>
               <option value="Open">Open</option>
               <option value="Partial">Partial</option>
@@ -148,8 +149,9 @@
         </div>
 
         <!-- Billing Table -->
-        <div class="table-shell">
-          <table>
+        <div class="table-wrap">
+          <div class="table-shell" style="overflow: visible;">
+            <table>
             <thead>
               <tr>
                 <th>Package ID</th>
@@ -227,7 +229,8 @@
                 </td>
               </tr>
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <!-- Pagination -->
@@ -528,7 +531,7 @@
               </div>
               <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
               <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1; margin-bottom: 8px;">
-                ${{ (dailyMethodTotals.creditCardUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} USD
+                ${{ (dailyMethodTotals.creditCardUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
               </p>
               <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
                 {{ dailySummaryDateFilter ? 'For selected date' : dailySummaryPeriod === 'today' ? 'Today' : dailySummaryPeriod === '7days' ? 'Last 7 days' : dailySummaryPeriod === '1month' ? 'Last month' : 'Last 90 days' }}
@@ -678,10 +681,27 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-if="!filteredOrders.length" class="empty">
+              <!-- Loading Skeleton -->
+              <template v-if="loadingOrders">
+                <tr v-for="i in 5" :key="'skeleton-' + i" class="skeleton-row">
+                  <td><div class="skeleton skeleton-cell checkbox"></div></td>
+                  <td><div class="skeleton skeleton-cell short"></div></td>
+                  <td><div class="skeleton skeleton-cell medium"></div></td>
+                  <td><div class="skeleton skeleton-cell long"></div></td>
+                  <td><div class="skeleton skeleton-cell short"></div></td>
+                  <td><div class="skeleton skeleton-cell tag"></div></td>
+                  <td><div class="skeleton skeleton-cell medium"></div></td>
+                  <td><div class="skeleton skeleton-cell short"></div></td>
+                  <td><div class="skeleton skeleton-cell short"></div></td>
+                  <td><div class="skeleton skeleton-cell button"></div></td>
+                </tr>
+              </template>
+              <!-- Empty State -->
+              <tr v-else-if="!filteredOrders.length && !loadingOrders" class="empty">
                 <td colspan="10">No orders yet.</td>
               </tr>
-              <tr v-for="order in filteredOrders" :key="order.id">
+              <!-- Order Rows -->
+              <tr v-else v-for="order in filteredOrders" :key="order.id">
                 <td><input type="checkbox" :checked="selectedOrderIds.includes(order.id)" @change="toggleOrderSelection(order.id)" /></td>
                 <td>{{ order.date }}</td>
                 <td>{{ order.customerName }}</td>
@@ -711,6 +731,54 @@
               </tr>
             </tbody>
           </table>
+          <!-- Orders Pagination -->
+          <div class="orders-pagination">
+            <div class="pagination-info">
+              <template v-if="allFilteredOrders.length > 0">
+                Showing {{ ((ordersCurrentPage - 1) * ordersPerPage) + 1 }} - {{ Math.min(ordersCurrentPage * ordersPerPage, allFilteredOrders.length) }} of {{ allFilteredOrders.length }} orders
+              </template>
+              <template v-else>
+                No orders to display
+              </template>
+            </div>
+            <div class="pagination-controls">
+              <button class="pagination-btn" @click="ordersCurrentPage = 1" :disabled="ordersCurrentPage === 1 || ordersTotalPages <= 1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+              </button>
+              <button class="pagination-btn" @click="ordersCurrentPage--" :disabled="ordersCurrentPage === 1 || ordersTotalPages <= 1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <template v-if="ordersTotalPages > 0">
+                <template v-for="page in ordersTotalPages" :key="page">
+                  <button
+                    v-if="page === 1 || page === ordersTotalPages || (page >= ordersCurrentPage - 1 && page <= ordersCurrentPage + 1)"
+                    class="pagination-btn"
+                    :class="{ active: page === ordersCurrentPage }"
+                    @click="ordersCurrentPage = page"
+                  >
+                    {{ page }}
+                  </button>
+                  <span v-else-if="page === ordersCurrentPage - 2 || page === ordersCurrentPage + 2" style="color: var(--text-muted);">...</span>
+                </template>
+              </template>
+              <button v-else class="pagination-btn active" disabled>1</button>
+              <button class="pagination-btn" @click="ordersCurrentPage++" :disabled="ordersCurrentPage >= ordersTotalPages || ordersTotalPages <= 1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+              <button class="pagination-btn" @click="ordersCurrentPage = ordersTotalPages" :disabled="ordersCurrentPage >= ordersTotalPages || ordersTotalPages <= 1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
+              </button>
+            </div>
+            <div class="per-page-select">
+              <span>Per page:</span>
+              <select v-model="ordersPerPage" @change="ordersCurrentPage = 1">
+                <option :value="5">5</option>
+                <option :value="10">10</option>
+                <option :value="25">25</option>
+                <option :value="50">50</option>
+              </select>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -982,7 +1050,7 @@
             }"
             v-if="currentUser?.role === 'full_control'"
           >
-            <img src="/asset/icon pack/settings.png" alt="Settings" style="width: 18px; height: 18px;" />
+            <svg width="18" height="18" fill="none" :stroke="activeSettingsTab === 'environment' ? 'white' : '#64748b'" stroke-width="2" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
             <span>Environment Control</span>
           </button>
 
@@ -1003,7 +1071,7 @@
               transition: 'all 0.2s ease'
             }"
           >
-            <img src="/asset/icon pack/Roles .png" alt="Roles" style="width: 18px; height: 18px;" />
+            <svg width="18" height="18" fill="none" :stroke="activeSettingsTab === 'roles' ? 'white' : '#64748b'" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             <span>Roles</span>
           </button>
 
@@ -1024,7 +1092,7 @@
               transition: 'all 0.2s ease'
             }"
           >
-            <img src="/asset/icon pack/users.png" alt="Users" style="width: 18px; height: 18px;" />
+            <svg width="18" height="18" fill="none" :stroke="activeSettingsTab === 'users' ? 'white' : '#64748b'" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Users</span>
           </button>
 
@@ -1046,7 +1114,7 @@
             }"
             v-if="currentUser?.role === 'full_control'"
           >
-            <img src="/asset/icon pack/api-cloud.png" alt="API Configuration" style="width: 18px; height: 18px;" />
+            <svg width="18" height="18" fill="none" :stroke="activeSettingsTab === 'api-config' ? 'white' : '#64748b'" stroke-width="2" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
             <span>API Configuration</span>
           </button>
 
@@ -1067,8 +1135,30 @@
               transition: 'all 0.2s ease'
             }"
           >
-            <img src="/asset/icon pack/bell-notification-social-media.png" alt="Notifications" style="width: 18px; height: 18px;" />
+            <svg width="18" height="18" fill="none" :stroke="activeSettingsTab === 'notifications' ? 'white' : '#64748b'" stroke-width="2" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
             <span>Notifications</span>
+          </button>
+
+          <button
+            @click="activeSettingsTab = 'page-control'"
+            :style="{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 20px',
+              borderRadius: '8px 8px 0 0',
+              border: 'none',
+              background: activeSettingsTab === 'page-control' ? '#3b82f6' : 'transparent',
+              color: activeSettingsTab === 'page-control' ? 'white' : '#64748b',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }"
+            v-if="currentUser?.role === 'full_control'"
+          >
+            <svg width="18" height="18" fill="none" :stroke="activeSettingsTab === 'page-control' ? 'white' : '#64748b'" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <span>Nav Control</span>
           </button>
         </div>
 
@@ -1117,12 +1207,6 @@
                 <h3 class="role-card-title">Administrator</h3>
                 <div class="role-card-footer">
                   <button class="role-edit-link" @click="openRolePermissionModal('full_control')">Edit Role</button>
-                  <button class="role-duplicate-btn" @click="duplicateRoleCard('full_control')" title="Duplicate Role">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                  </button>
                 </div>
               </div>
 
@@ -1148,12 +1232,6 @@
                 <h3 class="role-card-title">Manager</h3>
                 <div class="role-card-footer">
                   <button class="role-edit-link" @click="openRolePermissionModal('editor')">Edit Role</button>
-                  <button class="role-duplicate-btn" @click="duplicateRoleCard('editor')" title="Duplicate Role">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                  </button>
                 </div>
               </div>
 
@@ -1179,12 +1257,6 @@
                 <h3 class="role-card-title">Users</h3>
                 <div class="role-card-footer">
                   <button class="role-edit-link" @click="openRolePermissionModal('view_only')">Edit Role</button>
-                  <button class="role-duplicate-btn" @click="duplicateRoleCard('view_only')" title="Duplicate Role">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                  </button>
                 </div>
               </div>
             </div>
@@ -1403,249 +1475,13 @@
           </div>
         </div>
 
-        <!-- Toast Notification Settings -->
+        <!-- Implemented Notifications Reference Table -->
         <div class="card" v-if="activeSettingsTab === 'notifications'">
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Toast Notification Settings</h3>
-            <p class="muted">Create, edit, and test toast notification templates</p>
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Dashboard Notifications</h3>
+            <p class="muted">Manage notification messages used throughout the dashboard</p>
           </div>
-
-          <!-- Toast Notification Form -->
-          <div class="notification-form-section">
-            <!-- Message -->
-            <div class="form-group" style="margin-bottom: 16px;">
-              <label style="font-weight: 600; margin-bottom: 8px; display: block;">Message</label>
-              <textarea
-                v-model="notificationForm.message"
-                placeholder="Enter a message..."
-                rows="3"
-                style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; resize: vertical;"
-              ></textarea>
-            </div>
-
-            <!-- Notification Type -->
-            <div class="form-group" style="margin-bottom: 16px;">
-              <label style="font-weight: 600; margin-bottom: 8px; display: block;">Notification Type</label>
-              <div class="notification-type-options" style="display: flex; gap: 16px; flex-wrap: wrap;">
-                <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.type === 'success' }">
-                  <input type="radio" v-model="notificationForm.type" value="success" />
-                  <span class="radio-indicator success-indicator"></span>
-                  <span>Success</span>
-                </label>
-                <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.type === 'error' }">
-                  <input type="radio" v-model="notificationForm.type" value="error" />
-                  <span class="radio-indicator error-indicator"></span>
-                  <span>Error</span>
-                </label>
-                <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.type === 'info' }">
-                  <input type="radio" v-model="notificationForm.type" value="info" />
-                  <span class="radio-indicator info-indicator"></span>
-                  <span>Info</span>
-                </label>
-                <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.type === 'warning' }">
-                  <input type="radio" v-model="notificationForm.type" value="warning" />
-                  <span class="radio-indicator warning-indicator"></span>
-                  <span>Warning</span>
-                </label>
-              </div>
-            </div>
-
-            <!-- Position Type -->
-            <div class="form-group" style="margin-bottom: 16px;">
-              <label style="font-weight: 600; margin-bottom: 8px; display: block;">Position Type</label>
-              <div style="display: flex; gap: 24px; flex-wrap: wrap;">
-                <!-- Horizontal Position -->
-                <div>
-                  <span style="font-size: 13px; color: #6b7280; margin-bottom: 6px; display: block;">Horizontal</span>
-                  <div style="display: flex; gap: 12px;">
-                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionH === 'left' }">
-                      <input type="radio" v-model="notificationForm.positionH" value="left" />
-                      <span class="radio-indicator"></span>
-                      <span>Left</span>
-                    </label>
-                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionH === 'center' }">
-                      <input type="radio" v-model="notificationForm.positionH" value="center" />
-                      <span class="radio-indicator"></span>
-                      <span>Center</span>
-                    </label>
-                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionH === 'right' }">
-                      <input type="radio" v-model="notificationForm.positionH" value="right" />
-                      <span class="radio-indicator"></span>
-                      <span>Right</span>
-                    </label>
-                  </div>
-                </div>
-                <!-- Vertical Position -->
-                <div>
-                  <span style="font-size: 13px; color: #6b7280; margin-bottom: 6px; display: block;">Vertical</span>
-                  <div style="display: flex; gap: 12px;">
-                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionV === 'top' }">
-                      <input type="radio" v-model="notificationForm.positionV" value="top" />
-                      <span class="radio-indicator"></span>
-                      <span>Top</span>
-                    </label>
-                    <label class="notification-radio-label" :class="{ 'radio-selected': notificationForm.positionV === 'bottom' }">
-                      <input type="radio" v-model="notificationForm.positionV" value="bottom" />
-                      <span class="radio-indicator"></span>
-                      <span>Bottom</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Duration -->
-            <div class="form-group" style="margin-bottom: 16px;">
-              <label style="font-weight: 600; margin-bottom: 8px; display: block;">Duration (ms)</label>
-              <input
-                type="number"
-                v-model.number="notificationForm.duration"
-                min="1000"
-                max="30000"
-                step="500"
-                style="width: 150px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;"
-              />
-            </div>
-
-            <!-- Checkboxes Row -->
-            <div class="form-group" style="margin-bottom: 20px; display: flex; gap: 24px; flex-wrap: wrap;">
-              <label class="notification-checkbox-label">
-                <input type="checkbox" v-model="notificationForm.dismissible" />
-                <span class="checkbox-indicator"></span>
-                <span>Dismissible</span>
-              </label>
-              <label class="notification-checkbox-label">
-                <input type="checkbox" v-model="notificationForm.rippleEffect" />
-                <span class="checkbox-indicator"></span>
-                <span>Ripple Effect</span>
-              </label>
-            </div>
-
-            <!-- Action Buttons -->
-            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-              <button type="button" class="pill" @click="showTestNotification">
-                Show Notification
-              </button>
-              <button type="button" class="pill danger" @click="clearAllNotifications">
-                Clear Notifications
-              </button>
-              <button type="button" class="pill ghost" @click="saveNotificationTemplate">
-                {{ editingNotificationId ? 'Update Template' : 'Save Template' }}
-              </button>
-              <button v-if="editingNotificationId" type="button" class="pill ghost" @click="resetNotificationForm">
-                Cancel Edit
-              </button>
-            </div>
-          </div>
-
-          <!-- Saved Templates Table -->
-          <div style="margin-top: 32px;" v-if="notificationTemplates.length > 0">
-            <div style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb;">
-              <h4 style="font-size: 16px; font-weight: 600; color: var(--text-main);">Saved Notification Templates</h4>
-              <p class="muted" style="font-size: 13px;">{{ notificationTemplates.length }} template(s) saved</p>
-            </div>
-
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Message</th>
-                    <th>Type</th>
-                    <th>Position</th>
-                    <th>Duration</th>
-                    <th>Options</th>
-                    <th style="text-align: center;">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="template in paginatedNotificationTemplates" :key="template.id">
-                    <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                      {{ template.message }}
-                    </td>
-                    <td>
-                      <span class="notification-type-badge" :class="'type-' + template.type">
-                        {{ template.type }}
-                      </span>
-                    </td>
-                    <td>{{ template.positionH }} / {{ template.positionV }}</td>
-                    <td>{{ template.duration }}ms</td>
-                    <td>
-                      <span v-if="template.dismissible" class="option-tag">Dismissible</span>
-                      <span v-if="template.rippleEffect" class="option-tag">Ripple</span>
-                    </td>
-                    <td style="text-align: center;">
-                      <button class="icon-btn" @click="showToast(template.message, template.type, template.duration)" title="Test">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                      </button>
-                      <button class="icon-btn" @click="editNotificationTemplate(template)" title="Edit">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button class="icon-btn danger" @click="deleteNotificationTemplate(template.id)" title="Delete">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Pagination -->
-            <div class="notification-pagination" v-if="notificationTemplateTotalPages > 1">
-              <button
-                class="pagination-btn"
-                :disabled="notificationTemplatePage === 1"
-                @click="goToNotificationPage(1)"
-                title="First page"
-              >
-                &laquo;
-              </button>
-              <button
-                class="pagination-btn"
-                :disabled="notificationTemplatePage === 1"
-                @click="goToNotificationPage(notificationTemplatePage - 1)"
-                title="Previous page"
-              >
-                &lsaquo;
-              </button>
-              <button
-                v-for="page in getNotificationPageNumbers"
-                :key="page"
-                class="pagination-btn"
-                :class="{ 'pagination-active': page === notificationTemplatePage }"
-                @click="goToNotificationPage(page)"
-              >
-                {{ page }}
-              </button>
-              <button
-                class="pagination-btn"
-                :disabled="notificationTemplatePage === notificationTemplateTotalPages"
-                @click="goToNotificationPage(notificationTemplatePage + 1)"
-                title="Next page"
-              >
-                &rsaquo;
-              </button>
-              <button
-                class="pagination-btn"
-                :disabled="notificationTemplatePage === notificationTemplateTotalPages"
-                @click="goToNotificationPage(notificationTemplateTotalPages)"
-                title="Last page"
-              >
-                &raquo;
-              </button>
-            </div>
-          </div>
-
-          <!-- Empty State -->
-          <div v-else style="margin-top: 32px; text-align: center; padding: 40px 20px; background: #f9fafb; border-radius: 12px;">
-            <svg width="48" height="48" fill="none" stroke="#9ca3af" stroke-width="1.5" viewBox="0 0 24 24" style="margin: 0 auto 16px;">
-              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-            </svg>
-            <p style="color: #6b7280; font-size: 14px;">No notification templates saved yet</p>
-            <p style="color: #9ca3af; font-size: 13px;">Create a notification above and click "Save Template" to add it here</p>
-          </div>
-
-          <!-- Implemented Notifications Reference Table -->
-          <div style="margin-top: 32px;">
+          <div>
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; gap: 12px;">
               <div>
                 <h4 style="font-size: 16px; font-weight: 600; color: var(--text-main);">Implemented Dashboard Notifications</h4>
@@ -1768,6 +1604,53 @@
                 &raquo;
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- Nav Control Section -->
+        <div class="card" v-if="activeSettingsTab === 'page-control' && currentUser?.role === 'full_control'">
+          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Nav Control</h3>
+            <p class="muted">Toggle pages on or off to show or hide them in the navigation bar</p>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div
+              v-for="(page, key) in pageVisibility"
+              :key="key"
+              style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: #f8fafb; border-radius: 12px; border: 1px solid #e5e9f2;"
+            >
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, var(--sgx-blue), var(--sgx-light)); display: flex; align-items: center; justify-content: center;">
+                    <svg v-if="key === 'dashboard'" width="20" height="20" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    <svg v-else-if="key === 'packages'" width="20" height="20" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                    <svg v-else-if="key === 'shipment-bin'" width="20" height="20" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/><circle cx="17" cy="8" r="1"/><circle cx="17" cy="16" r="1"/></svg>
+                    <svg v-else-if="key === 'orders'" width="20" height="20" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
+                    <svg v-else-if="key === 'summary'" width="20" height="20" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                  </div>
+                  <div>
+                    <h4 style="font-size: 15px; font-weight: 600; color: var(--text-main); margin: 0 0 4px 0;">{{ page.label }}</h4>
+                    <p style="font-size: 13px; color: var(--text-muted); margin: 0;">{{ page.description }}</p>
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span :style="{ fontSize: '13px', fontWeight: '600', color: page.enabled ? '#10b981' : '#ef4444' }">
+                  {{ page.enabled ? 'Visible' : 'Hidden' }}
+                </span>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="page.enabled" @change="savePageVisibility" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 24px; padding: 16px; background: rgba(59, 130, 246, 0.08); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.2);">
+            <p style="font-size: 13px; color: #1e40af; margin: 0;">
+              <strong>Note:</strong> Settings page cannot be disabled and is only visible to administrators. Disabling a page will hide it from the navigation bar for all users.
+            </p>
           </div>
         </div>
       </section>
@@ -2069,7 +1952,7 @@
       </section>
     </main>
 
-    <div class="modal" v-if="modals.add">
+    <div class="modal" v-if="modals.add" @click="handleModalClick($event, () => closeModal('add'))">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2137,7 +2020,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="modals.view">
+    <div class="modal" v-if="modals.view" @click="handleModalClick($event, () => modals.view = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2216,7 +2099,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="orderModals.add">
+    <div class="modal" v-if="orderModals.add" @click="handleModalClick($event, () => orderModals.add = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2273,7 +2156,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="orderModals.edit">
+    <div class="modal" v-if="orderModals.edit" @click="handleModalClick($event, () => orderModals.edit = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2330,7 +2213,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="orderModals.delete">
+    <div class="modal" v-if="orderModals.delete" @click="handleModalClick($event, () => orderModals.delete = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2351,7 +2234,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="modals.collection">
+    <div class="modal" v-if="modals.collection" @click="handleModalClick($event, () => closeModal('collection'))">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2412,7 +2295,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="modals.edit">
+    <div class="modal" v-if="modals.edit" @click="handleModalClick($event, () => modals.edit = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2456,7 +2339,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="modals.delete">
+    <div class="modal" v-if="modals.delete" @click="handleModalClick($event, () => modals.delete = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2486,7 +2369,7 @@
     <!-- BILLING CONSOLE MODALS -->
 
     <!-- Bill Modal -->
-    <div class="modal" v-if="billingModals.bill">
+    <div class="modal" v-if="billingModals.bill" @click="handleModalClick($event, () => billingModals.bill = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2536,7 +2419,7 @@
     </div>
 
     <!-- Collect Modal -->
-    <div class="modal" v-if="billingModals.collect">
+    <div class="modal" v-if="billingModals.collect" @click="handleModalClick($event, () => billingModals.collect = false)">
       <div class="modal-card billing-modal collect-modal">
         <header>
           <div>
@@ -2590,7 +2473,7 @@
     </div>
 
     <!-- Billing View Modal -->
-    <div class="modal" v-if="billingModals.view">
+    <div class="modal" v-if="billingModals.view" @click="handleModalClick($event, () => billingModals.view = false)">
       <div class="modal-card billing-modal" style="max-width: 520px;">
         <header>
           <div>
@@ -2674,7 +2557,7 @@
     </div>
 
     <!-- Billing Edit Modal -->
-    <div class="modal" v-if="billingModals.edit">
+    <div class="modal" v-if="billingModals.edit" @click="handleModalClick($event, () => billingModals.edit = false)">
       <div class="modal-card billing-modal" style="max-width: 480px;">
         <header>
           <div>
@@ -2759,7 +2642,7 @@
     </div>
 
     <!-- Billing Delete Modal -->
-    <div class="modal" v-if="billingModals.delete">
+    <div class="modal" v-if="billingModals.delete" @click="handleModalClick($event, () => billingModals.delete = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2794,7 +2677,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="userModals.add">
+    <div class="modal" v-if="userModals.add" @click="handleModalClick($event, () => userModals.add = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2839,7 +2722,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="userModals.edit">
+    <div class="modal" v-if="userModals.edit" @click="handleModalClick($event, () => userModals.edit = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2884,7 +2767,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="userModals.delete">
+    <div class="modal" v-if="userModals.delete" @click="handleModalClick($event, () => userModals.delete = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -2905,7 +2788,7 @@
       </div>
     </div>
 
-    <div class="modal" v-if="userModals.permissions">
+    <div class="modal" v-if="userModals.permissions" @click="handleModalClick($event, () => userModals.permissions = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -3001,7 +2884,7 @@
     </div>
 
     <!-- Shipment Upload Modal -->
-    <div class="modal" v-if="shipmentModals.upload">
+    <div class="modal" v-if="shipmentModals.upload" @click="handleModalClick($event, () => shipmentModals.upload = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -3043,7 +2926,7 @@
     </div>
 
     <!-- Move Package Confirmation Modal -->
-    <div class="modal" v-if="shipmentModals.moveConfirm">
+    <div class="modal" v-if="shipmentModals.moveConfirm" @click="handleModalClick($event, () => shipmentModals.moveConfirm = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -3070,7 +2953,7 @@
     </div>
 
     <!-- Edit Shipment Log Modal -->
-    <div class="modal" v-if="shipmentModals.edit">
+    <div class="modal" v-if="shipmentModals.edit" @click="handleModalClick($event, () => shipmentModals.edit = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -3103,7 +2986,7 @@
     </div>
 
     <!-- Delete Shipment Log Modal -->
-    <div class="modal" v-if="shipmentModals.delete">
+    <div class="modal" v-if="shipmentModals.delete" @click="handleModalClick($event, () => shipmentModals.delete = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -3129,7 +3012,7 @@
     </div>
 
     <!-- Add Shipment Item Modal -->
-    <div class="modal" v-if="shipmentModals.addItem">
+    <div class="modal" v-if="shipmentModals.addItem" @click="handleModalClick($event, () => shipmentModals.addItem = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -3182,7 +3065,7 @@
     </div>
 
     <!-- Edit Shipment Item Modal -->
-    <div class="modal" v-if="shipmentModals.editItem">
+    <div class="modal" v-if="shipmentModals.editItem" @click="handleModalClick($event, () => shipmentModals.editItem = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -3227,7 +3110,7 @@
     </div>
 
     <!-- Move Shipment Item Modal -->
-    <div class="modal" v-if="shipmentModals.moveItem">
+    <div class="modal" v-if="shipmentModals.moveItem" @click="handleModalClick($event, () => shipmentModals.moveItem = false)">
       <div class="modal-card billing-modal">
         <header>
           <div>
@@ -3836,6 +3719,30 @@
     </transition-group>
   </div>
 
+  <!-- Global Confirmation Dialog -->
+  <div class="modal" v-if="confirmationDialog.show" @click="handleModalClick($event, closeConfirmation)">
+    <div class="modal-card" style="max-width: 420px;">
+      <div class="confirmation-dialog">
+        <div class="confirmation-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          </svg>
+        </div>
+        <h3 class="confirmation-title">{{ confirmationDialog.title }}</h3>
+        <p class="confirmation-message">{{ confirmationDialog.message }}</p>
+        <div v-if="confirmationDialog.detail" class="confirmation-detail">
+          <span v-for="(line, idx) in confirmationDialog.detail.split('\n')" :key="idx">
+            {{ line }}<br v-if="idx < confirmationDialog.detail.split('\n').length - 1" />
+          </span>
+        </div>
+      </div>
+      <div class="modal-actions" style="justify-content: center;">
+        <button class="pill ghost" type="button" @click="closeConfirmation">{{ confirmationDialog.cancelText }}</button>
+        <button class="pill danger" type="button" @click="executeConfirmation">{{ confirmationDialog.confirmText }}</button>
+      </div>
+    </div>
+  </div>
+
 </template>
 
 <script setup>
@@ -4219,6 +4126,15 @@ const photoInput = ref(null);
 const placeholderPhoto = "https://via.placeholder.com/120x120.png?text=Photo";
 const settings = reactive({ notifyEmail: true, notifySms: false, notifyDesktop: true });
 
+// Page Visibility Settings
+const pageVisibility = reactive({
+  dashboard: { enabled: true, label: 'Dashboard', description: 'Main dashboard with billing console and statistics' },
+  packages: { enabled: true, label: 'Packages', description: 'Package management and tracking' },
+  'shipment-bin': { enabled: true, label: 'Shipment Bin', description: 'Shipment bin management and logs' },
+  orders: { enabled: true, label: 'SGX Order', description: 'Customer orders management' },
+  summary: { enabled: true, label: 'Daily Summary', description: 'Daily summary reports and analytics' }
+});
+
 // Toast Notification Settings
 const notificationForm = reactive({
   message: '',
@@ -4562,6 +4478,27 @@ const statusOptions = ["Ready for Pickup", "Processing at Customs", "Processing 
 const ordersSearch = ref("");
 const orderStatusOptions = ["Ordered", "Received"];
 const orderModals = reactive({ add: false, edit: false, delete: false });
+
+// ==================== ORDERS PAGINATION STATE ====================
+const ordersCurrentPage = ref(1);
+const ordersPerPage = ref(10);
+
+// ==================== LOADING STATES ====================
+const loadingOrders = ref(false);
+const loadingShipmentItems = ref(false);
+const loadingBillingItems = ref(false);
+
+// ==================== CONFIRMATION DIALOG STATE ====================
+const confirmationDialog = reactive({
+  show: false,
+  title: '',
+  message: '',
+  detail: '',
+  onConfirm: null,
+  confirmText: 'Delete',
+  cancelText: 'Cancel',
+  type: 'danger' // 'danger' or 'warning'
+});
 const orderAddForm = reactive({
   id: "",
   date: "",
@@ -4900,7 +4837,8 @@ const filteredCustomers = computed(() => {
     .slice(0, 6);
 });
 
-const filteredOrders = computed(() => {
+// All filtered orders (before pagination)
+const allFilteredOrders = computed(() => {
   const q = ordersSearch.value.trim().toLowerCase();
   if (!q) return orders.value;
   return orders.value.filter(
@@ -4908,6 +4846,23 @@ const filteredOrders = computed(() => {
       o.customerName.toLowerCase().includes(q) ||
       o.merchant.toLowerCase().includes(q)
   );
+});
+
+// Total pages for orders
+const ordersTotalPages = computed(() => {
+  return Math.ceil(allFilteredOrders.value.length / ordersPerPage.value);
+});
+
+// Paginated orders for display
+const filteredOrders = computed(() => {
+  const start = (ordersCurrentPage.value - 1) * ordersPerPage.value;
+  const end = start + ordersPerPage.value;
+  return allFilteredOrders.value.slice(start, end);
+});
+
+// Reset page when search changes
+watch(ordersSearch, () => {
+  ordersCurrentPage.value = 1;
 });
 
 const visiblePackages = computed(() => {
@@ -4957,7 +4912,14 @@ const filteredBillingItems = computed(() => {
   );
 
   // Filter by billing status
-  if (billingStatusFilter.value !== 'all') {
+  if (billingStatusFilter.value === 'all') {
+    // "All" now excludes Closed items by default
+    items = items.filter(item => item.billing_status !== 'Closed');
+  } else if (billingStatusFilter.value === 'show_all') {
+    // "Show All" includes everything including Closed
+    // No additional filtering needed
+  } else {
+    // Filter by specific status
     items = items.filter(item => item.billing_status === billingStatusFilter.value);
   }
 
@@ -6027,6 +5989,38 @@ const confirmOrderDelete = () => {
   orderDeleteId.value = "";
 };
 
+// ==================== CONFIRMATION DIALOG HELPERS ====================
+const showConfirmation = (options) => {
+  confirmationDialog.title = options.title || 'Confirm Action';
+  confirmationDialog.message = options.message || 'Are you sure you want to proceed?';
+  confirmationDialog.detail = options.detail || '';
+  confirmationDialog.confirmText = options.confirmText || 'Delete';
+  confirmationDialog.cancelText = options.cancelText || 'Cancel';
+  confirmationDialog.type = options.type || 'danger';
+  confirmationDialog.onConfirm = options.onConfirm;
+  confirmationDialog.show = true;
+};
+
+const closeConfirmation = () => {
+  confirmationDialog.show = false;
+  confirmationDialog.onConfirm = null;
+};
+
+const executeConfirmation = () => {
+  if (confirmationDialog.onConfirm) {
+    confirmationDialog.onConfirm();
+  }
+  closeConfirmation();
+};
+
+// ==================== MODAL CLICK OUTSIDE HANDLER ====================
+const handleModalClick = (event, closeCallback) => {
+  // Only close if clicking the modal backdrop (not the modal content)
+  if (event.target === event.currentTarget) {
+    closeCallback();
+  }
+};
+
 const testApi = (runTest) => {
   apiStatus.value = runTest ? "Sending test call (mock)" : "Saved";
   setTimeout(() => {
@@ -7051,29 +7045,33 @@ const confirmItemMove = async () => {
   }
 };
 
-// Delete shipment item
-const deleteShipmentItem = async (item) => {
-  if (!confirm(`Are you sure you want to delete this package?\n\nTracking: ${item.tracking_number}\nCustomer: ${item.customer_name}`)) {
-    return;
-  }
+// Delete shipment item with confirmation dialog
+const deleteShipmentItem = (item) => {
+  showConfirmation({
+    title: 'Delete Package',
+    message: 'Are you sure you want to delete this package from the shipment log?',
+    detail: `Tracking: ${item.tracking_number}\nCustomer: ${item.customer_name}`,
+    confirmText: 'Delete Package',
+    onConfirm: async () => {
+      try {
+        const response = await fetch(`http://localhost:4000/api/shipment-items/${item.id}`, {
+          method: 'DELETE',
+        });
 
-  try {
-    const response = await fetch(`http://localhost:4000/api/shipment-items/${item.id}`, {
-      method: 'DELETE',
-    });
-
-    const data = await response.json();
-    if (data.success) {
-      await loadShipmentItems();
-      await loadShipmentLogs(); // Refresh card counts
-      showToast('Package deleted successfully', 'success');
-    } else {
-      showToast(data.error || 'Failed to delete package', 'error');
+        const data = await response.json();
+        if (data.success) {
+          await loadShipmentItems();
+          await loadShipmentLogs(); // Refresh card counts
+          showToast('Package deleted successfully', 'success');
+        } else {
+          showToast(data.error || 'Failed to delete package', 'error');
+        }
+      } catch (error) {
+        console.error('Failed to delete item:', error);
+        showToast('Failed to delete package', 'error');
+      }
     }
-  } catch (error) {
-    console.error('Failed to delete item:', error);
-    showToast('Failed to delete package', 'error');
-  }
+  });
 };
 
 // Update shipment item status
@@ -7310,6 +7308,47 @@ const loadMaintenanceMode = async () => {
     }
   } catch (error) {
     console.error('Failed to load maintenance mode:', error);
+  }
+};
+
+// Page Visibility Functions
+const loadPageVisibility = async () => {
+  try {
+    const response = await fetch('http://localhost:4000/api/settings/page-visibility');
+    const data = await response.json();
+    if (data.success && data.pageVisibility) {
+      Object.keys(data.pageVisibility).forEach(key => {
+        if (pageVisibility[key]) {
+          pageVisibility[key].enabled = data.pageVisibility[key];
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Failed to load page visibility:', error);
+  }
+};
+
+const savePageVisibility = async () => {
+  try {
+    const visibilityData = {};
+    Object.keys(pageVisibility).forEach(key => {
+      visibilityData[key] = pageVisibility[key].enabled;
+    });
+
+    const response = await fetch('http://localhost:4000/api/settings/page-visibility', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageVisibility: visibilityData })
+    });
+    const data = await response.json();
+    if (data.success) {
+      showToast('Page visibility settings saved successfully', 'success');
+    } else {
+      showToast('Failed to save page visibility settings', 'error');
+    }
+  } catch (error) {
+    console.error('Failed to save page visibility:', error);
+    showToast('Failed to save page visibility settings', 'error');
   }
 };
 
@@ -7878,6 +7917,7 @@ onMounted(() => {
   loadBillingStats();
   loadDailySummary();
   loadOrders();
+  loadPageVisibility();
 });
 
 onBeforeUnmount(() => {
@@ -8173,8 +8213,8 @@ onBeforeUnmount(() => {
 }
 
 .bl-status-btn.bl-open {
-  background: rgba(245, 158, 11, 0.15);
-  color: #b45309;
+  background: rgba(239, 68, 68, 0.15);
+  color: #b91c1c;
 }
 
 .bl-status-btn.bl-partial {
@@ -8194,10 +8234,10 @@ onBeforeUnmount(() => {
   background: white;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
   min-width: 120px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .bl-status-menu button {
@@ -8214,6 +8254,12 @@ onBeforeUnmount(() => {
 
 .bl-status-menu button:hover {
   background: rgba(0, 174, 239, 0.08);
+}
+
+/* Table Wrapper for Horizontal Scroll */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Billing Pagination */
@@ -8879,5 +8925,162 @@ td .tag.danger {
 .collect-modal .modal-footer {
   margin-top: 16px;
   padding-top: 16px;
+}
+
+/* ==================== SKELETON LOADING STYLES ==================== */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-row {
+  display: table-row;
+}
+
+.skeleton-row td {
+  padding: 16px 14px;
+  border-bottom: 1px solid #f1f3f7;
+}
+
+.skeleton-cell {
+  height: 16px;
+  border-radius: 4px;
+}
+
+.skeleton-cell.short { width: 60px; }
+.skeleton-cell.medium { width: 120px; }
+.skeleton-cell.long { width: 180px; }
+.skeleton-cell.checkbox { width: 16px; height: 16px; }
+.skeleton-cell.tag { width: 80px; height: 24px; border-radius: 12px; }
+.skeleton-cell.button { width: 70px; height: 28px; border-radius: 14px; }
+
+/* ==================== CONFIRMATION DIALOG STYLES ==================== */
+.confirmation-dialog {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.confirmation-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirmation-icon svg {
+  width: 32px;
+  height: 32px;
+  color: #dc2626;
+}
+
+.confirmation-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+
+.confirmation-message {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.confirmation-detail {
+  font-size: 13px;
+  color: var(--text-muted);
+  background: #f8fafb;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.confirmation-detail strong {
+  color: var(--text-main);
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* ==================== ORDERS PAGINATION STYLES ==================== */
+.orders-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+  background: #f8fafb;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-btn {
+  min-width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: #ffffff;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #f8fafb;
+  border-color: var(--sgx-light);
+  color: var(--sgx-blue);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-btn.active {
+  background: var(--sgx-light);
+  border-color: var(--sgx-light);
+  color: #ffffff;
+}
+
+.pagination-info {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.per-page-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.per-page-select select {
+  width: auto;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 8px;
 }
 </style>
