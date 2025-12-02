@@ -114,20 +114,74 @@ onUnmounted(() => {
 
 <style scoped>
 .modal-small {
-  max-width: 400px;
+  width: min(480px, 95%);
 }
 .modal-medium {
-  max-width: 600px;
+  width: min(720px, 95%);
 }
 .modal-large {
-  max-width: 900px;
+  width: min(920px, 95%);
 }
 .modal-full {
-  max-width: 95vw;
-  max-height: 95vh;
+  width: 95vw;
+  max-height: 90vh;
 }
+
+/* Modal body scrolls when content is too tall */
 .modal-body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* Centered header styles for Apple feel */
+header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+header > div {
+  text-align: center;
+}
+
+header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.modal-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.close-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover {
+  background: #f1f5f9;
+  color: var(--text-main);
 }
 </style>

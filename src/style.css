@@ -716,15 +716,43 @@ td .tag.partial {
 }
 
 .modal-card {
-  width: min(680px, 100%);
+  width: min(800px, 95vw);
   max-height: 90vh;
-  overflow-y: auto;
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 28px;
+  padding: 32px 40px;
   box-shadow: var(--shadow-elevated);
   animation: slideUp 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Modal body scrolls when content is too tall */
+.modal-card form,
+.modal-card > div:not(.modal-actions):not(.confirmation-dialog) {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* Ensure modal-actions stays fixed at bottom */
+.modal-card .modal-actions,
+.modal-card .modal-footer {
+  flex-shrink: 0;
+}
+
+/* Wide modal for forms with 2-column grids */
+.modal-card.wide,
+.modal-card.billing-modal {
+  width: min(900px, 95vw);
+}
+
+/* Extra wide modal for complex forms with many fields */
+.modal-card.extra-wide {
+  width: min(1000px, 95vw);
 }
 
 @keyframes slideUp {
@@ -740,15 +768,74 @@ td .tag.partial {
 
 .modal-card header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-  gap: 16px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+  position: relative;
+  flex-shrink: 0;
 }
 
 .modal-card header h3 {
   font-size: var(--font-title-3);
   font-weight: 600;
+  text-align: center;
+  margin: 0;
+}
+
+/* Close button positioned absolutely for centered title */
+.modal-card header .modal-close {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.modal-card header .modal-close:hover {
+  background: #f1f5f9;
+  color: var(--text-main);
+}
+
+/* Center modal title */
+.modal-card header > div {
+  text-align: center;
+  flex: 1;
+}
+
+.modal-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.close-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover {
+  background: #f1f5f9;
+  color: var(--text-main);
 }
 
 form label {
@@ -816,10 +903,31 @@ select {
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 20px;
+  gap: 16px;
+  margin-top: 28px;
+  padding-top: 24px;
   border-top: 1px solid #f1f5f9;
+}
+
+/* Apple-style text button for Cancel (no border) */
+.pill.text-btn {
+  background: transparent;
+  border: none;
+  color: var(--sgx-blue);
+  padding: 12px 20px;
+  font-weight: 500;
+}
+
+.pill.text-btn:hover:not(:disabled) {
+  background: rgba(0, 174, 239, 0.08);
+}
+
+.pill.text-btn.danger {
+  color: #dc2626;
+}
+
+.pill.text-btn.danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.06);
 }
 
 .table-shell .empty td {

@@ -662,6 +662,7 @@
       <section v-if="currentPage === 'orders'" class="panel full-page" id="orders">
         <div class="panel-head">
           <div>
+            <p class="eyebrow">Order Management</p>
             <h2>Orders</h2>
           </div>
           <button class="pill" type="button" @click="openOrderAdd" :disabled="!currentUser || !can('manageOrders')">Add Order</button>
@@ -974,7 +975,7 @@
       <BaseModal
         v-model="showDeliveryModal"
         :title="editingDelivery ? 'Edit Delivery Request' : 'Add Delivery Request'"
-        size="medium"
+        size="large"
         @close="closeDeliveryModal"
       >
         <form @submit.prevent="saveDeliveryRequest">
@@ -1026,7 +1027,7 @@
             </label>
           </div>
           <div class="modal-actions">
-            <button type="button" class="pill ghost" @click="closeDeliveryModal">Cancel</button>
+            <button type="button" class="pill text-btn" @click="closeDeliveryModal">Cancel</button>
             <button type="submit" class="pill">{{ editingDelivery ? 'Update' : 'Add' }} Request</button>
           </div>
         </form>
@@ -1052,7 +1053,7 @@
             </label>
           </div>
           <div class="modal-actions">
-            <button type="button" class="pill ghost" @click="showDeliveryStatusModal = false">Cancel</button>
+            <button type="button" class="pill text-btn" @click="showDeliveryStatusModal = false">Cancel</button>
             <button type="submit" class="pill">Update Status</button>
           </div>
         </form>
@@ -1066,7 +1067,7 @@
       >
         <p style="margin-bottom: 20px;">Are you sure you want to delete this delivery request? This action cannot be undone.</p>
         <div class="modal-actions">
-          <button type="button" class="pill ghost" @click="showDeliveryDeleteModal = false">Cancel</button>
+          <button type="button" class="pill text-btn" @click="showDeliveryDeleteModal = false">Cancel</button>
           <button type="button" class="pill danger" @click="confirmDeleteDelivery">Delete</button>
         </div>
       </BaseModal>
@@ -1718,7 +1719,7 @@
 
           <div v-if="isEditingApiConfig" style="display: flex; gap: 12px; margin-top: 24px;">
             <button class="pill" type="button" @click="saveApiConfig">Save Configuration</button>
-            <button class="pill ghost" type="button" @click="isEditingApiConfig = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="isEditingApiConfig = false">Cancel</button>
           </div>
 
           <div v-else style="display: flex; gap: 12px; margin-top: 24px;">
@@ -2391,7 +2392,7 @@
             <textarea v-model="addForm.note" rows="3" placeholder="Any quick detail on this package"></textarea>
           </label>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="closeModal('add')">Cancel</button>
+            <button class="pill text-btn" type="button" @click="closeModal('add')">Cancel</button>
             <button class="pill" type="submit">Add package</button>
           </div>
         </form>
@@ -2527,7 +2528,7 @@
             <input v-model="orderAddForm.description" type="text" />
           </label>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="orderModals.add = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="orderModals.add = false">Cancel</button>
             <button class="pill" type="submit">Add order</button>
           </div>
         </form>
@@ -2584,7 +2585,7 @@
             <input v-model="orderEditForm.description" type="text" />
           </label>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="orderModals.edit = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="orderModals.edit = false">Cancel</button>
             <button class="pill" type="submit">Save changes</button>
           </div>
         </form>
@@ -2606,7 +2607,7 @@
         </header>
         <p class="muted" style="margin-bottom: 20px;">Are you sure you want to delete this order? This action cannot be undone.</p>
         <div class="modal-footer">
-          <button class="pill ghost" type="button" @click="orderModals.delete = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="orderModals.delete = false">Cancel</button>
           <button class="pill danger" type="button" @click="confirmOrderDelete">Delete Order</button>
         </div>
       </div>
@@ -2666,7 +2667,7 @@
             <textarea v-model="collectionForm.note" rows="3" placeholder="Any quick detail on this handoff"></textarea>
           </label>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="closeModal('collection')">Cancel</button>
+            <button class="pill text-btn" type="button" @click="closeModal('collection')">Cancel</button>
             <button class="pill" type="submit">Confirm collected</button>
           </div>
         </form>
@@ -2710,7 +2711,7 @@
             <textarea v-model="editForm.note" rows="3" placeholder="Reason or handoff note" required></textarea>
           </label>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="closeModal('edit')">Cancel</button>
+            <button class="pill text-btn" type="button" @click="closeModal('edit')">Cancel</button>
             <button class="pill" type="submit">Save changes</button>
           </div>
         </form>
@@ -2737,7 +2738,7 @@
             <textarea v-model="deleteForm.note" rows="3" placeholder="Why is this being removed?" required></textarea>
           </label>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="closeModal('delete')">Cancel</button>
+            <button class="pill text-btn" type="button" @click="closeModal('delete')">Cancel</button>
             <button class="pill danger" type="submit">Delete package</button>
           </div>
         </form>
@@ -2789,7 +2790,7 @@
             <span class="summary-value">{{ formatCurrency((billForm.packageCost || 0) + (billForm.customFee || 0) + (billForm.processingFee || 0)) }}</span>
           </div>
           <div class="modal-footer">
-            <button class="pill ghost" type="button" @click="billingModals.bill = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="billingModals.bill = false">Cancel</button>
             <button class="pill" type="submit">Confirm Bill</button>
           </div>
         </form>
@@ -2843,7 +2844,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="pill ghost" type="button" @click="billingModals.collect = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="billingModals.collect = false">Cancel</button>
             <button class="pill" type="submit">Collect Payment</button>
           </div>
         </form>
@@ -2852,7 +2853,7 @@
 
     <!-- Billing View Modal -->
     <div class="modal" v-if="billingModals.view" @click="handleModalClick($event, () => billingModals.view = false)">
-      <div class="modal-card billing-modal" style="max-width: 520px;">
+      <div class="modal-card billing-modal">
         <header>
           <div>
             <h3>Package Details</h3>
@@ -2927,8 +2928,8 @@
               <span class="info-value">{{ billingViewItem?.billing_notes || '—' }}</span>
             </div>
           </div>
-          <div class="modal-footer">
-            <button class="pill ghost" type="button" @click="billingModals.view = false">Close</button>
+          <div class="modal-actions">
+            <button class="pill" type="button" @click="billingModals.view = false">Close</button>
           </div>
         </div>
       </div>
@@ -2936,7 +2937,7 @@
 
     <!-- Billing Edit Modal -->
     <div class="modal" v-if="billingModals.edit" @click="handleModalClick($event, () => billingModals.edit = false)">
-      <div class="modal-card billing-modal" style="max-width: 480px;">
+      <div class="modal-card billing-modal">
         <header>
           <div>
             <h3>Edit Package</h3>
@@ -3012,7 +3013,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="pill ghost" type="button" @click="billingModals.edit = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="billingModals.edit = false">Cancel</button>
             <button class="pill" type="submit">Save Changes</button>
           </div>
         </form>
@@ -3048,7 +3049,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="pill ghost" type="button" @click="billingModals.delete = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="billingModals.delete = false">Cancel</button>
             <button class="pill danger" type="button" @click="confirmBillingDelete">Delete Package</button>
           </div>
         </div>
@@ -3093,7 +3094,7 @@
             </label>
           </div>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="userModals.add = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="userModals.add = false">Cancel</button>
             <button class="pill" type="submit">Create user</button>
           </div>
         </form>
@@ -3138,7 +3139,7 @@
             </label>
           </div>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="userModals.edit = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="userModals.edit = false">Cancel</button>
             <button class="pill" type="submit">Save changes</button>
           </div>
         </form>
@@ -3160,7 +3161,7 @@
         </header>
         <p class="muted" style="margin-bottom: 20px;">Are you sure you want to delete this user? This action cannot be undone.</p>
         <div class="modal-footer">
-          <button class="pill ghost" type="button" @click="userModals.delete = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="userModals.delete = false">Cancel</button>
           <button class="pill danger" type="button" @click="confirmUserDelete">Delete User</button>
         </div>
       </div>
@@ -3255,7 +3256,7 @@
           </div>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="userModals.permissions = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="userModals.permissions = false">Cancel</button>
           <button class="pill" type="button" @click="saveCustomPermissions">Save permissions</button>
         </div>
       </div>
@@ -3296,7 +3297,7 @@
             </label>
           </div>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="shipmentModals.upload = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="shipmentModals.upload = false">Cancel</button>
             <button class="pill" type="submit" :disabled="!shipmentUploadForm.file">Upload</button>
           </div>
         </form>
@@ -3324,7 +3325,7 @@
           <p style="margin-top: 16px;">Do you want to move this package to the current shipment log?</p>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="shipmentModals.moveConfirm = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="shipmentModals.moveConfirm = false">Cancel</button>
           <button class="pill" type="button" @click="confirmMovePackage">Move to Current Log</button>
         </div>
       </div>
@@ -3356,7 +3357,7 @@
             </label>
           </div>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="shipmentModals.edit = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="shipmentModals.edit = false">Cancel</button>
             <button class="pill" type="submit">Save Changes</button>
           </div>
         </form>
@@ -3383,7 +3384,7 @@
           <p class="error-text" style="margin-top: 16px;">This action cannot be undone. All associated shipment items will also be deleted.</p>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="shipmentModals.delete = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="shipmentModals.delete = false">Cancel</button>
           <button class="pill danger" type="button" @click="confirmShipmentDelete">Delete Shipment Log</button>
         </div>
       </div>
@@ -3435,7 +3436,7 @@
             </label>
           </div>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="shipmentModals.addItem = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="shipmentModals.addItem = false">Cancel</button>
             <button class="pill" type="submit">Add Package</button>
           </div>
         </form>
@@ -3480,7 +3481,7 @@
             </label>
           </div>
           <div class="modal-actions">
-            <button class="pill ghost" type="button" @click="shipmentModals.editItem = false">Cancel</button>
+            <button class="pill text-btn" type="button" @click="shipmentModals.editItem = false">Cancel</button>
             <button class="pill" type="submit">Save Changes</button>
           </div>
         </form>
@@ -3524,7 +3525,7 @@
           </label>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="shipmentModals.moveItem = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="shipmentModals.moveItem = false">Cancel</button>
           <button class="pill" type="button" @click="confirmItemMove" :disabled="!itemMoveDestination">Move Package</button>
         </div>
       </div>
@@ -3560,7 +3561,7 @@
           </label>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="roleModals.add = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="roleModals.add = false">Cancel</button>
           <button class="pill" type="button" @click="createRole" :disabled="!roleForm.name">Create Role</button>
         </div>
       </div>
@@ -3593,7 +3594,7 @@
           </label>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="roleModals.edit = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="roleModals.edit = false">Cancel</button>
           <button class="pill" type="button" @click="updateRole" :disabled="!roleEditForm.name">Update Role</button>
         </div>
       </div>
@@ -3620,7 +3621,7 @@
           <p class="muted">This action cannot be undone. Users with this role will need to be reassigned.</p>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="roleModals.delete = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="roleModals.delete = false">Cancel</button>
           <button class="pill danger" type="button" @click="deleteRole">Delete Role</button>
         </div>
       </div>
@@ -3650,7 +3651,7 @@
           </label>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="roleModals.duplicate = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="roleModals.duplicate = false">Cancel</button>
           <button class="pill" type="button" @click="duplicateRole" :disabled="!duplicateRoleName">Duplicate Role</button>
         </div>
       </div>
@@ -3693,7 +3694,7 @@
           </div>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="roleModals.permissions = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="roleModals.permissions = false">Cancel</button>
           <button class="pill" type="button" @click="saveRolePermissions">Save Permissions</button>
         </div>
       </div>
@@ -3723,7 +3724,7 @@
           </label>
         </div>
         <div class="modal-actions">
-          <button class="pill ghost" type="button" @click="passwordResetModal = false">Cancel</button>
+          <button class="pill text-btn" type="button" @click="passwordResetModal = false">Cancel</button>
           <button class="pill" type="button" @click="resetUserPassword" :disabled="!newPassword">Reset Password</button>
         </div>
       </div>
@@ -3732,7 +3733,7 @@
 
   <!-- Role Permission Modal -->
   <div v-if="rolePermissionModal" class="modal" @click.self="rolePermissionModal = false">
-      <div class="modal-card billing-modal" style="max-width: 700px;">
+      <div class="modal-card billing-modal wide">
         <header>
           <div>
             <h3>Role Permissions</h3>
@@ -3955,7 +3956,7 @@
         </div>
 
         <div class="modal-actions" style="margin-top: 24px;">
-          <button class="pill ghost" type="button" @click="rolePermissionModal = false" :disabled="savingRolePermissions">Cancel</button>
+          <button class="pill text-btn" type="button" @click="rolePermissionModal = false" :disabled="savingRolePermissions">Cancel</button>
           <button class="pill" type="button" @click="submitRolePermissionSettings" style="background: #3b82f6;" :disabled="savingRolePermissions">
             {{ savingRolePermissions ? 'Saving...' : 'Save Permissions' }}
           </button>
@@ -3965,10 +3966,17 @@
 
   <!-- Add Implemented Notification Modal -->
   <div v-if="implementedNotificationModal.add" class="modal" @click.self="implementedNotificationModal.add = false">
-    <div class="modal-card">
+    <div class="modal-card billing-modal">
       <header>
-        <h3>Add New Notification</h3>
-        <button type="button" class="pill ghost small" @click="implementedNotificationModal.add = false">Close</button>
+        <div>
+          <h3>Add New Notification</h3>
+          <p class="modal-subtitle">Notification Settings</p>
+        </div>
+        <button class="close-btn" aria-label="Close modal" @click="implementedNotificationModal.add = false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
       </header>
       <form @submit.prevent="saveImplementedNotification">
         <label>
@@ -3995,7 +4003,7 @@
           </label>
         </div>
         <div class="modal-actions">
-          <button type="button" class="pill ghost" @click="implementedNotificationModal.add = false">Cancel</button>
+          <button type="button" class="pill text-btn" @click="implementedNotificationModal.add = false">Cancel</button>
           <button type="submit" class="pill">Add Notification</button>
         </div>
       </form>
@@ -4004,10 +4012,17 @@
 
   <!-- Edit Implemented Notification Modal -->
   <div v-if="implementedNotificationModal.edit" class="modal" @click.self="implementedNotificationModal.edit = false">
-    <div class="modal-card">
+    <div class="modal-card billing-modal">
       <header>
-        <h3>Edit Notification</h3>
-        <button type="button" class="pill ghost small" @click="implementedNotificationModal.edit = false">Close</button>
+        <div>
+          <h3>Edit Notification</h3>
+          <p class="modal-subtitle">Notification Settings</p>
+        </div>
+        <button class="close-btn" aria-label="Close modal" @click="implementedNotificationModal.edit = false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
       </header>
       <form @submit.prevent="updateImplementedNotification">
         <label>
@@ -4034,7 +4049,7 @@
           </label>
         </div>
         <div class="modal-actions">
-          <button type="button" class="pill ghost" @click="implementedNotificationModal.edit = false">Cancel</button>
+          <button type="button" class="pill text-btn" @click="implementedNotificationModal.edit = false">Cancel</button>
           <button type="submit" class="pill">Update Notification</button>
         </div>
       </form>
@@ -4043,16 +4058,23 @@
 
   <!-- Delete Implemented Notification Modal -->
   <div v-if="implementedNotificationModal.delete" class="modal" @click.self="implementedNotificationModal.delete = false">
-    <div class="modal-card" style="max-width: 450px;">
+    <div class="modal-card billing-modal">
       <header>
-        <h3>Delete Notification</h3>
-        <button type="button" class="pill ghost small" @click="implementedNotificationModal.delete = false">Close</button>
+        <div>
+          <h3>Delete Notification</h3>
+          <p class="modal-subtitle">Confirm deletion</p>
+        </div>
+        <button class="close-btn" aria-label="Close modal" @click="implementedNotificationModal.delete = false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
       </header>
-      <p style="margin-bottom: 20px; color: var(--text-secondary);">
+      <p class="muted" style="margin-bottom: 20px;">
         Are you sure you want to delete this notification? This action cannot be undone.
       </p>
       <div class="modal-actions">
-        <button type="button" class="pill ghost" @click="implementedNotificationModal.delete = false">Cancel</button>
+        <button type="button" class="pill text-btn" @click="implementedNotificationModal.delete = false">Cancel</button>
         <button type="button" class="pill danger" @click="deleteImplementedNotification">Delete</button>
       </div>
     </div>
@@ -4099,7 +4121,7 @@
 
   <!-- Global Confirmation Dialog -->
   <div class="modal" v-if="confirmationDialog.show" @click="handleModalClick($event, closeConfirmation)">
-    <div class="modal-card" style="max-width: 420px;">
+    <div class="modal-card billing-modal confirmation-modal">
       <div class="confirmation-dialog">
         <div class="confirmation-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -4115,7 +4137,7 @@
         </div>
       </div>
       <div class="modal-actions" style="justify-content: center;">
-        <button class="pill ghost" type="button" @click="closeConfirmation">{{ confirmationDialog.cancelText }}</button>
+        <button class="pill text-btn" type="button" @click="closeConfirmation">{{ confirmationDialog.cancelText }}</button>
         <button class="pill danger" type="button" @click="executeConfirmation">{{ confirmationDialog.confirmText }}</button>
       </div>
     </div>
@@ -9424,10 +9446,10 @@ td .tag.danger {
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
+  gap: 16px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #f1f5f9;
 }
 
 .btn-primary {
@@ -9811,6 +9833,11 @@ td .tag.danger {
   color: var(--text-main);
   display: block;
   margin-bottom: 4px;
+}
+
+/* Confirmation modal - smaller width for simple dialogs */
+.modal-card.confirmation-modal {
+  width: min(480px, 95vw);
 }
 
 /* ==================== ORDERS PAGINATION STYLES ==================== */
