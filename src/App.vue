@@ -94,32 +94,31 @@
         <!-- Billing Stats -->
         <div class="grid stats-split">
           <div class="card stat">
-            <p class="eyebrow">Unbilled</p>
             <h3>{{ billingStats.unbilled }}</h3>
+            <p class="stat-label">Unbilled</p>
           </div>
           <div class="card stat">
-            <p class="eyebrow">Open</p>
             <h3>{{ billingStats.open }}</h3>
+            <p class="stat-label">Open</p>
           </div>
           <div class="card stat">
-            <p class="eyebrow">Closed Today</p>
             <h3>{{ billingStats.closedToday }}</h3>
+            <p class="stat-label">Closed Today</p>
           </div>
           <div class="card stat">
-            <p class="eyebrow">Collected Today</p>
             <h3>{{ formatCurrency(billingStats.amountCollectedToday) }}</h3>
+            <p class="stat-label">Collected Today</p>
           </div>
         </div>
 
         <!-- Search -->
-        <div class="search-header no-title">
-          <div class="search-box" style="min-width: 400px;">
-            <label class="input-label" for="billingSearch">Search by Customer Name, Package ID, or Tracking Number</label>
+        <div class="search-section">
+          <div class="search-box" style="width: 100%;">
             <div class="input-shell with-clear">
               <input
                 id="billingSearch"
                 type="text"
-                placeholder="Search..."
+                placeholder="Search by customer name, package ID, or tracking number..."
                 autocomplete="off"
                 v-model="billingSearchQuery"
               />
@@ -137,15 +136,37 @@
               </button>
             </div>
           </div>
-          <div class="action-group">
-            <select v-model="billingStatusFilter" class="billing-filter-select">
-              <option value="all">All BL Status</option>
-              <option value="show_all">Show All (incl. Closed)</option>
-              <option value="unbilled">Unbilled</option>
-              <option value="Open">Open</option>
-              <option value="Partial">Partial</option>
-              <option value="Closed">Closed</option>
-            </select>
+          <div class="filter-pills">
+            <button
+              class="filter-pill"
+              :class="{ active: billingStatusFilter === 'all' }"
+              @click="billingStatusFilter = 'all'"
+            >All</button>
+            <button
+              class="filter-pill"
+              :class="{ active: billingStatusFilter === 'unbilled' }"
+              @click="billingStatusFilter = 'unbilled'"
+            >Unbilled</button>
+            <button
+              class="filter-pill"
+              :class="{ active: billingStatusFilter === 'Open' }"
+              @click="billingStatusFilter = 'Open'"
+            >Open</button>
+            <button
+              class="filter-pill"
+              :class="{ active: billingStatusFilter === 'Partial' }"
+              @click="billingStatusFilter = 'Partial'"
+            >Partial</button>
+            <button
+              class="filter-pill"
+              :class="{ active: billingStatusFilter === 'Closed' }"
+              @click="billingStatusFilter = 'Closed'"
+            >Closed</button>
+            <button
+              class="filter-pill"
+              :class="{ active: billingStatusFilter === 'show_all' }"
+              @click="billingStatusFilter = 'show_all'"
+            >Show All</button>
           </div>
         </div>
 
@@ -641,27 +662,31 @@
       <section v-if="currentPage === 'orders'" class="panel full-page" id="orders">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Customers Orders</p>
-            <h2>Customers Orders</h2>
+            <h2>Orders</h2>
+          </div>
+          <button class="pill" type="button" @click="openOrderAdd" :disabled="!currentUser || !can('manageOrders')">Add Order</button>
+        </div>
+
+        <!-- Contextual Bulk Actions Bar -->
+        <div v-if="selectedOrderIds.length > 0" class="bulk-actions-bar">
+          <span class="bulk-selection-count">{{ selectedOrderIds.length }} item{{ selectedOrderIds.length > 1 ? 's' : '' }} selected</span>
+          <div class="bulk-actions-buttons">
+            <button class="pill ghost small" type="button" @click="bulkOrderReceive" :disabled="!currentUser || !can('manageOrders')">Mark as Received</button>
+            <button class="pill ghost danger small" type="button" @click="openOrderDelete('')" :disabled="!currentUser || !can('manageOrders')">Delete Selected</button>
+            <button class="pill ghost small" type="button" @click="selectedOrderIds = []">Clear Selection</button>
           </div>
         </div>
 
         <div class="orders-controls">
           <div class="search-box compact">
-            <label class="input-label" for="orderSearch">Search</label>
             <div class="input-shell">
               <input
                 id="orderSearch"
                 type="text"
-                placeholder="Search customer or merchant"
+                placeholder="Search customer or merchant..."
                 v-model="ordersSearch"
               />
             </div>
-          </div>
-          <div class="action-group gap-3">
-            <button class="pill small" type="button" @click="openOrderAdd" :disabled="!currentUser || !can('manageOrders')">Add order</button>
-            <button class="pill secondary small" type="button" @click="bulkOrderReceive" :disabled="!currentUser || !selectedOrderIds.length || !can('manageOrders')">Bulk update to received</button>
-            <button class="pill danger small" type="button" @click="openOrderDelete('')" :disabled="!currentUser || !selectedOrderIds.length || !can('manageOrders')">Bulk delete</button>
           </div>
         </div>
 
@@ -1943,7 +1968,7 @@
         </div>
 
         <!-- CARDS VIEW: Show when no active log is selected -->
-        <div v-if="!activeShipmentLogId && shipmentLogs.length > 0">
+        <div v-if="!activeShipmentLogId && allShipmentLogs.length > 0">
           <!-- Global Search Box -->
           <div style="margin-bottom: 24px;">
             <input
@@ -2013,78 +2038,63 @@
             <p class="muted">Searching...</p>
           </div>
 
-          <!-- Show Archived Toggle (only when not showing search results) -->
-          <div v-if="!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2" style="margin-bottom: 16px;">
-            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--text-muted);">
-              <input type="checkbox" v-model="showArchivedLogs" style="width: 18px; height: 18px; cursor: pointer;" />
-              <span>Show Archived</span>
+          <!-- Filter Bar with Toggle -->
+          <div v-if="!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2" class="shipment-filter-bar">
+            <div>
+              <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">
+                {{ showArchivedLogs ? 'Archived Shipment Logs' : 'All Shipment Logs' }}
+              </h3>
+              <p class="muted" style="font-size: 13px;">{{ showArchivedLogs ? 'Viewing archived logs' : 'Click on a log to start scanning packages' }}</p>
+            </div>
+            <label class="ios-toggle">
+              <input type="checkbox" v-model="showArchivedLogs" />
+              <span class="ios-toggle-slider"></span>
+              <span class="ios-toggle-label">{{ showArchivedLogs ? 'Show Active' : 'Show Archived' }}</span>
             </label>
           </div>
 
-          <div v-if="!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2" style="margin-bottom: 20px;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">
-              {{ showArchivedLogs ? 'Archived Shipment Logs' : 'All Shipment Logs' }}
-            </h3>
-            <p class="muted">{{ showArchivedLogs ? 'Viewing archived logs' : 'Click on a log to start scanning packages' }}</p>
+          <!-- Empty State when no logs match filter -->
+          <div v-if="(!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2) && shipmentLogs.length === 0" style="text-align: center; padding: 60px 20px; background: #f8f9fb; border-radius: 12px; margin-top: 20px;">
+            <p style="font-size: 16px; color: var(--text-muted); margin-bottom: 8px;">
+              {{ showArchivedLogs ? 'No archived shipment logs' : 'No active shipment logs' }}
+            </p>
+            <p style="font-size: 14px; color: var(--text-muted);">
+              {{ showArchivedLogs ? 'Toggle to show active logs' : 'All logs are currently active' }}
+            </p>
           </div>
 
-          <div v-if="!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+          <div v-if="(!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2) && shipmentLogs.length > 0" class="shipment-logs-grid">
             <div v-for="log in shipmentLogs" :key="log.id"
-                 class="card clickable-card"
+                 class="card shipment-log-card"
                  :class="{ 'archived-card': log.archived }"
-                 @click="selectShipmentLog(log.id)"
-                 style="cursor: pointer; transition: all 0.2s ease;">
+                 @click="selectShipmentLog(log.id)">
 
-              <!-- Header: Title and Cargo Badge -->
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">
-                  {{ log.log_name }}
-                </h4>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <span v-if="log.archived" style="background: #9ca3af; color: white; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 4px; text-transform: uppercase;">
-                    Archived
-                  </span>
-                  <span :style="{
-                    background: '#f3f4f6',
-                    color: '#6b7280',
-                    fontSize: '13px',
-                    fontWeight: '500',
-                    padding: '6px 12px',
-                    borderRadius: '6px'
-                  }">
-                    {{ log.cargo_type || 'Air Cargo' }}
-                  </span>
-                </div>
+              <!-- Hero: Item Count -->
+              <div class="log-card-hero">
+                <span class="log-card-count">{{ getLogItemCount(log.id) }}</span>
+                <span class="log-card-count-label">packages</span>
               </div>
 
-              <!-- Divider -->
-              <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+              <!-- Log Name -->
+              <h4 class="log-card-title">{{ log.log_name }}</h4>
 
-              <!-- Large Number -->
-              <div style="margin-bottom: 8px;">
-                <p style="font-size: 48px; font-weight: 700; color: #111827; line-height: 1;">
-                  {{ getLogItemCount(log.id) }}
-                </p>
+              <!-- Meta Info -->
+              <div class="log-card-meta">
+                <span>{{ log.shipment_date }}</span>
+                <span class="log-card-meta-dot">•</span>
+                <span>{{ log.cargo_type || 'Air Cargo' }}</span>
               </div>
 
-              <!-- Supporting Text -->
-              <p style="font-size: 14px; color: #9ca3af; margin-bottom: 20px;">
-                Shipment date: {{ log.shipment_date }}
-              </p>
-
-              <!-- Bottom Info Row -->
-              <div>
-                <p style="font-size: 13px; color: #6b7280;">
-                  Uploaded by <span style="font-weight: 600; color: #374151;">{{ log.uploaded_by || 'Unknown' }}</span>
-                </p>
+              <!-- Badges -->
+              <div v-if="log.archived" class="log-card-badges">
+                <span class="log-archived-badge">Archived</span>
               </div>
 
               <!-- Archive/Unarchive Button -->
-              <div v-if="hasPermission('manageShipments')" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;" @click.stop>
+              <div v-if="hasPermission('manageShipments')" class="log-card-actions" @click.stop>
                 <button
                   v-if="!log.archived"
                   class="pill small ghost"
-                  style="width: 100%;"
                   @click="archiveShipmentLog(log.id)"
                 >
                   Archive
@@ -2092,7 +2102,6 @@
                 <button
                   v-else
                   class="pill small"
-                  style="width: 100%;"
                   @click="unarchiveShipmentLog(log.id)"
                 >
                   Unarchive
@@ -5037,7 +5046,7 @@ const isEditingApiConfig = ref(false);
 const maintenanceMode = ref(false);
 
 // Shipment Bin State
-const shipmentLogs = ref([]);
+const allShipmentLogs = ref([]);
 const activeShipmentLogId = ref("");
 const shipmentItems = ref([]);
 const shipmentFilter = ref("all");
@@ -5053,6 +5062,14 @@ const notFoundCount = ref(0);
 const notFoundScans = ref([]);
 const showNotFoundScans = ref(false);
 const showArchivedLogs = ref(false);
+
+// Filtered shipment logs based on showArchivedLogs toggle
+const shipmentLogs = computed(() => {
+  if (showArchivedLogs.value) {
+    return allShipmentLogs.value.filter(log => log.archived);
+  }
+  return allShipmentLogs.value.filter(log => !log.archived);
+});
 
 // Global search state for Shipment Bin
 const globalSearchQuery = ref('');
@@ -7086,14 +7103,13 @@ const saveCustomPermissions = () => {
 
 // ==================== SHIPMENT BIN FUNCTIONS ====================
 
-// Load all shipment logs
+// Load all shipment logs (always fetch all, filter on frontend via computed)
 const loadShipmentLogs = async () => {
   try {
-    const archivedParam = showArchivedLogs.value ? 'true' : 'false';
-    const response = await fetch(`http://localhost:4000/api/shipment-logs?archived=${archivedParam}`);
+    const response = await fetch(`http://localhost:4000/api/shipment-logs`);
     const data = await response.json();
     if (data.success) {
-      shipmentLogs.value = data.logs;
+      allShipmentLogs.value = data.logs;
     }
   } catch (error) {
     console.error('Failed to load shipment logs:', error);
@@ -7443,7 +7459,7 @@ const clearGlobalSearch = () => {
 const getLogItemCount = (logId) => {
   // This will be calculated from backend data when logs are loaded
   // For now, return 0 as a placeholder - we'll add this to the log data
-  const log = shipmentLogs.value.find(l => l.id === logId);
+  const log = allShipmentLogs.value.find(l => l.id === logId);
   return log?.itemCount || 0;
 };
 

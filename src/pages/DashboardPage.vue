@@ -16,22 +16,44 @@
     </div>
 
     <!-- Search -->
-    <div class="search-header no-title">
+    <div class="search-section">
       <SearchBox
         v-model="searchQuery"
-        label="Search by Customer Name, Package ID, or Tracking Number"
-        placeholder="Search..."
-        :style="{ minWidth: '400px' }"
+        placeholder="Search by customer name, package ID, or tracking number..."
+        :compact="false"
+        :style="{ width: '100%', minWidth: '100%' }"
       />
-      <div class="action-group">
-        <select v-model="statusFilter" class="billing-filter-select">
-          <option value="all">All BL Status</option>
-          <option value="show_all">Show All (incl. Closed)</option>
-          <option value="unbilled">Unbilled</option>
-          <option value="Open">Open</option>
-          <option value="Partial">Partial</option>
-          <option value="Closed">Closed</option>
-        </select>
+      <div class="filter-pills">
+        <button
+          class="filter-pill"
+          :class="{ active: statusFilter === 'all' }"
+          @click="statusFilter = 'all'"
+        >All</button>
+        <button
+          class="filter-pill"
+          :class="{ active: statusFilter === 'unbilled' }"
+          @click="statusFilter = 'unbilled'"
+        >Unbilled</button>
+        <button
+          class="filter-pill"
+          :class="{ active: statusFilter === 'Open' }"
+          @click="statusFilter = 'Open'"
+        >Open</button>
+        <button
+          class="filter-pill"
+          :class="{ active: statusFilter === 'Partial' }"
+          @click="statusFilter = 'Partial'"
+        >Partial</button>
+        <button
+          class="filter-pill"
+          :class="{ active: statusFilter === 'Closed' }"
+          @click="statusFilter = 'Closed'"
+        >Closed</button>
+        <button
+          class="filter-pill"
+          :class="{ active: statusFilter === 'show_all' }"
+          @click="statusFilter = 'show_all'"
+        >Show All</button>
       </div>
     </div>
 
@@ -236,3 +258,22 @@ const paginatedItems = computed(() => {
   return filteredItems.value.slice(start, start + props.itemsPerPage);
 });
 </script>
+
+<style scoped>
+.search-section {
+  margin-bottom: 24px;
+}
+
+.search-section :deep(.search-box) {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  margin-bottom: 12px;
+}
+
+.filter-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+</style>

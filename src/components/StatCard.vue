@@ -1,7 +1,7 @@
 <template>
   <div class="card stat" :class="{ clickable: clickable }" @click="clickable && $emit('click')">
-    <p class="eyebrow">{{ label }}</p>
     <h3 :style="valueStyle">{{ formattedValue }}</h3>
+    <p class="stat-label">{{ label }}</p>
     <p v-if="subtitle" class="stat-subtitle">{{ subtitle }}</p>
   </div>
 </template>
@@ -80,9 +80,15 @@ const formattedValue = computed(() => {
   transform: translateY(-2px);
   box-shadow: var(--shadow-elevated);
 }
+.stat-label {
+  font-size: var(--font-small);
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
 .stat-subtitle {
   font-size: 13px;
   color: var(--text-muted);
-  margin-top: 4px;
+  margin-top: 2px;
 }
 </style>

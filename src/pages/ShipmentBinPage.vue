@@ -35,9 +35,10 @@
 
       <!-- Show Archived Toggle -->
       <div class="archive-toggle-container">
-        <label class="archive-toggle">
+        <label class="ios-toggle">
           <input type="checkbox" v-model="localShowArchived" />
-          <span>Show Archived</span>
+          <span class="ios-toggle-slider"></span>
+          <span class="ios-toggle-label">{{ localShowArchived ? 'Show Active' : 'Show Archived' }}</span>
         </label>
       </div>
 
