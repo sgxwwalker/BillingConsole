@@ -1126,7 +1126,16 @@ app.post('/api/external/push-status', async (req, res) => {
 // Get all shipment logs
 app.get('/api/shipment-logs', (req, res) => {
   try {
-    const logs = shipmentLogQueries.getAll();
+    const { archived } = req.query;
+
+    let logs;
+    if (archived === 'true') {
+      logs = shipmentLogQueries.getArchived();
+    } else if (archived === 'false') {
+      logs = shipmentLogQueries.getActive();
+    } else {
+      logs = shipmentLogQueries.getAll();
+    }
 
     // Add item count to each log
     const logsWithCounts = logs.map(log => {
@@ -1141,6 +1150,22 @@ app.get('/api/shipment-logs', (req, res) => {
   } catch (error) {
     logger.error('fetching shipment logs:', error);
     sendError(res, 'Failed to fetch shipment logs', 500);
+  }
+});
+
+// Global search across all shipment items (for Shipment Bin global search)
+app.get('/api/shipment-items/search', (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) {
+      return sendSuccess(res, { items: [] }, 'Search query too short');
+    }
+
+    const items = shipmentItemQueries.globalSearch(q.trim());
+    sendSuccess(res, { items }, 'Search completed successfully');
+  } catch (error) {
+    logger.error('global search shipment items:', error);
+    sendError(res, 'Failed to search shipment items', 500);
   }
 });
 
@@ -1452,6 +1477,38 @@ app.delete('/api/shipment-logs/:id', (req, res) => {
   } catch (error) {
     logger.error('deleting shipment log:', error);
     sendError(res, 'Failed to delete shipment log', 500);
+  }
+});
+
+// Archive a shipment log
+app.patch('/api/shipment-logs/:id/archive', (req, res) => {
+  try {
+    const { id } = req.params;
+    const log = shipmentLogQueries.getById(id);
+    if (!log) {
+      return sendError(res, 'Shipment log not found', 404);
+    }
+    shipmentLogQueries.archive(id);
+    sendSuccess(res, {}, 'Shipment log archived successfully');
+  } catch (error) {
+    logger.error('archiving shipment log:', error);
+    sendError(res, 'Failed to archive shipment log', 500);
+  }
+});
+
+// Unarchive a shipment log
+app.patch('/api/shipment-logs/:id/unarchive', (req, res) => {
+  try {
+    const { id } = req.params;
+    const log = shipmentLogQueries.getById(id);
+    if (!log) {
+      return sendError(res, 'Shipment log not found', 404);
+    }
+    shipmentLogQueries.unarchive(id);
+    sendSuccess(res, {}, 'Shipment log unarchived successfully');
+  } catch (error) {
+    logger.error('unarchiving shipment log:', error);
+    sendError(res, 'Failed to unarchive shipment log', 500);
   }
 });
 

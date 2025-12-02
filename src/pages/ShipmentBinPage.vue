@@ -24,21 +24,101 @@
 
     <!-- CARDS VIEW: Show when no active log is selected -->
     <div v-if="!activeLogId && shipmentLogs.length > 0">
-      <div style="margin-bottom: 20px;">
-        <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">All Shipment Logs</h3>
-        <p class="muted">Click on a log to start scanning packages</p>
+      <!-- Global Search Box -->
+      <div class="global-search-container">
+        <SearchBox
+          v-model="globalSearchQuery"
+          placeholder="Search all shipment logs by tracking number, package ID, or customer name..."
+          :compact="false"
+        />
       </div>
 
-      <div class="shipment-logs-grid">
+      <!-- Show Archived Toggle -->
+      <div class="archive-toggle-container">
+        <label class="archive-toggle">
+          <input type="checkbox" v-model="localShowArchived" />
+          <span>Show Archived</span>
+        </label>
+      </div>
+
+      <!-- Global Search Results -->
+      <div v-if="globalSearchQuery.trim().length >= 2 && globalSearchResults.length > 0" class="global-search-results">
+        <div class="search-results-header">
+          <h3>Search Results ({{ globalSearchResults.length }})</h3>
+          <button class="pill ghost small" @click="clearGlobalSearch">Clear Search</button>
+        </div>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Tracking Number</th>
+                <th>Customer</th>
+                <th>Package ID</th>
+                <th>Status</th>
+                <th>Shipment Log</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in globalSearchResults" :key="item.id">
+                <td><strong>{{ item.tracking_number }}</strong></td>
+                <td>{{ item.customer_name }}</td>
+                <td>{{ item.package_id || '—' }}</td>
+                <td>
+                  <span class="tag" :class="{
+                    'success': item.status === 'received',
+                    'secondary': item.status === 'pending',
+                    'danger': item.status === 'not_found'
+                  }">
+                    {{ item.status === 'received' ? 'Received' : item.status === 'pending' ? 'Pending' : item.status }}
+                  </span>
+                </td>
+                <td>
+                  <button class="log-link" @click="$emit('select-log', item.log_id)">
+                    {{ item.shipment_log_name || 'Unknown Log' }}
+                  </button>
+                </td>
+                <td>
+                  <button class="pill small" @click="$emit('select-log', item.log_id)">View in Log</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- No Results Message -->
+      <div v-else-if="globalSearchQuery.trim().length >= 2 && globalSearchResults.length === 0 && !isSearching" class="empty-search-results">
+        <p class="muted">No packages found matching "{{ globalSearchQuery }}"</p>
+      </div>
+
+      <!-- Searching indicator -->
+      <div v-else-if="isSearching" class="searching-indicator">
+        <p class="muted">Searching...</p>
+      </div>
+
+      <!-- Shipment Logs Grid (hide when showing search results) -->
+      <div v-if="!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2" style="margin-top: 20px;">
+        <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">
+          {{ localShowArchived ? 'Archived Shipment Logs' : 'All Shipment Logs' }}
+        </h3>
+        <p class="muted">{{ localShowArchived ? 'Viewing archived logs' : 'Click on a log to start scanning packages' }}</p>
+      </div>
+
+      <div v-if="!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2" class="shipment-logs-grid">
         <div
           v-for="log in shipmentLogs"
           :key="log.id"
           class="card clickable-card"
+          :class="{ 'archived-card': log.archived }"
           @click="$emit('select-log', log.id)"
         >
           <div class="log-card-header">
             <h4>{{ log.log_name }}</h4>
-            <span class="log-cargo-badge">{{ log.cargo_type || 'Air Cargo' }}</span>
+            <div class="log-header-badges">
+              <span v-if="log.archived" class="log-archived-badge">Archived</span>
+              <span class="log-cargo-badge">{{ log.cargo_type || 'Air Cargo' }}</span>
+            </div>
           </div>
           <div class="log-card-divider"></div>
           <div class="log-card-count">{{ getLogItemCount(log.id) }}</div>
@@ -46,6 +126,23 @@
           <p class="log-card-uploaded">
             Uploaded by <span class="bold">{{ log.uploaded_by || 'Unknown' }}</span>
           </p>
+          <!-- Archive/Unarchive Button -->
+          <div v-if="canManageShipments" class="log-card-actions" @click.stop>
+            <button
+              v-if="!log.archived"
+              class="pill small ghost"
+              @click="$emit('archive-log', log.id)"
+            >
+              Archive
+            </button>
+            <button
+              v-else
+              class="pill small"
+              @click="$emit('unarchive-log', log.id)"
+            >
+              Unarchive
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -280,6 +377,10 @@ const props = defineProps({
   statusFilter: {
     type: String,
     default: 'all'
+  },
+  showArchived: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -298,7 +399,10 @@ const emit = defineEmits([
   'sort',
   'update:searchQuery',
   'update:courierFilter',
-  'update:statusFilter'
+  'update:statusFilter',
+  'update:showArchived',
+  'archive-log',
+  'unarchive-log'
 ]);
 
 const kebabOpen = reactive({});
@@ -306,10 +410,49 @@ const localScanInput = ref('');
 const localSearchQuery = ref(props.searchQuery);
 const localCourierFilter = ref(props.courierFilter);
 const localStatusFilter = ref(props.statusFilter);
+const localShowArchived = ref(props.showArchived);
+
+// Global search state
+const globalSearchQuery = ref('');
+const globalSearchResults = ref([]);
+const isSearching = ref(false);
+let searchTimeout = null;
 
 watch(localSearchQuery, (val) => emit('update:searchQuery', val));
 watch(localCourierFilter, (val) => emit('update:courierFilter', val));
 watch(localStatusFilter, (val) => emit('update:statusFilter', val));
+watch(localShowArchived, (val) => emit('update:showArchived', val));
+
+// Watch global search query with debounce
+watch(globalSearchQuery, (val) => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+
+  if (!val || val.trim().length < 2) {
+    globalSearchResults.value = [];
+    isSearching.value = false;
+    return;
+  }
+
+  isSearching.value = true;
+  searchTimeout = setTimeout(async () => {
+    try {
+      const response = await fetch(`http://localhost:4000/api/shipment-items/search?q=${encodeURIComponent(val.trim())}`);
+      const data = await response.json();
+      if (data.success) {
+        globalSearchResults.value = data.items;
+      }
+    } catch (error) {
+      console.error('Global search failed:', error);
+    } finally {
+      isSearching.value = false;
+    }
+  }, 300);
+});
+
+const clearGlobalSearch = () => {
+  globalSearchQuery.value = '';
+  globalSearchResults.value = [];
+};
 
 const activeLog = computed(() => {
   return props.shipmentLogs.find(l => l.id === props.activeLogId);
@@ -581,5 +724,106 @@ const getStatusClass = (status) => {
 .empty-state {
   text-align: center;
   padding: 40px 0;
+}
+
+/* Global Search Styles */
+.global-search-container {
+  margin-bottom: 24px;
+}
+
+.global-search-results {
+  margin-bottom: 24px;
+}
+
+.search-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.search-results-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.empty-search-results,
+.searching-indicator {
+  text-align: center;
+  padding: 40px 20px;
+  background: #f8f9fb;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.log-link {
+  background: none;
+  border: none;
+  color: var(--sgx-blue);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 14px;
+  padding: 0;
+}
+
+.log-link:hover {
+  color: var(--sgx-dark);
+}
+
+/* Archive Toggle Styles */
+.archive-toggle-container {
+  margin-bottom: 16px;
+}
+
+.archive-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.archive-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.archive-toggle span {
+  user-select: none;
+}
+
+/* Archived Card Styles */
+.archived-card {
+  opacity: 0.7;
+  border: 2px dashed #9ca3af !important;
+}
+
+.log-header-badges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.log-archived-badge {
+  background: #9ca3af;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.log-card-actions {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.log-card-actions button {
+  width: 100%;
 }
 </style>

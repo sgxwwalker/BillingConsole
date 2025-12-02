@@ -151,8 +151,8 @@
 
         <!-- Billing Table -->
         <div class="table-wrap">
-          <div class="table-shell" style="overflow: visible;">
-            <table>
+          <div class="billing-table-container">
+            <table class="billing-table-fixed-header">
             <thead>
               <tr>
                 <th>Package ID</th>
@@ -1944,14 +1944,94 @@
 
         <!-- CARDS VIEW: Show when no active log is selected -->
         <div v-if="!activeShipmentLogId && shipmentLogs.length > 0">
-          <div style="margin-bottom: 20px;">
-            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">All Shipment Logs</h3>
-            <p class="muted">Click on a log to start scanning packages</p>
+          <!-- Global Search Box -->
+          <div style="margin-bottom: 24px;">
+            <input
+              v-model="globalSearchQuery"
+              type="text"
+              placeholder="Search all shipment logs by tracking number, package ID, or customer name..."
+              style="width: 100%; padding: 14px 16px; font-size: 15px; border: 1px solid #cbd5e1; border-radius: 8px; background: white;"
+            />
           </div>
 
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+          <!-- Global Search Results -->
+          <div v-if="globalSearchQuery.trim().length >= 2 && globalSearchResults.length > 0" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main);">Search Results ({{ globalSearchResults.length }})</h3>
+              <button class="pill ghost small" @click="clearGlobalSearch">Clear Search</button>
+            </div>
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tracking Number</th>
+                    <th>Customer</th>
+                    <th>Package ID</th>
+                    <th>Status</th>
+                    <th>Shipment Log</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in globalSearchResults" :key="item.id">
+                    <td><strong>{{ item.tracking_number }}</strong></td>
+                    <td>{{ item.customer_name }}</td>
+                    <td>{{ item.package_id || '—' }}</td>
+                    <td>
+                      <span class="tag" :class="{
+                        'success': item.status === 'received',
+                        'secondary': item.status === 'pending',
+                        'danger': item.status === 'not_found'
+                      }">
+                        {{ item.status === 'received' ? 'Received' : item.status === 'pending' ? 'Pending' : item.status }}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        style="background: none; border: none; color: var(--sgx-blue); cursor: pointer; text-decoration: underline; font-size: 14px; padding: 0;"
+                        @click="selectShipmentLog(item.shipment_log_id)"
+                      >
+                        {{ item.shipment_log_name || 'Unknown Log' }}
+                      </button>
+                    </td>
+                    <td>
+                      <button class="pill small" @click="selectShipmentLog(item.shipment_log_id)">View in Log</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- No Results Message -->
+          <div v-else-if="globalSearchQuery.trim().length >= 2 && globalSearchResults.length === 0 && !isGlobalSearching" style="text-align: center; padding: 40px 20px; background: #f8f9fb; border-radius: 8px; margin-bottom: 24px;">
+            <p class="muted">No packages found matching "{{ globalSearchQuery }}"</p>
+          </div>
+
+          <!-- Searching indicator -->
+          <div v-else-if="isGlobalSearching" style="text-align: center; padding: 40px 20px; background: #f8f9fb; border-radius: 8px; margin-bottom: 24px;">
+            <p class="muted">Searching...</p>
+          </div>
+
+          <!-- Show Archived Toggle (only when not showing search results) -->
+          <div v-if="!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2" style="margin-bottom: 16px;">
+            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--text-muted);">
+              <input type="checkbox" v-model="showArchivedLogs" style="width: 18px; height: 18px; cursor: pointer;" />
+              <span>Show Archived</span>
+            </label>
+          </div>
+
+          <div v-if="!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2" style="margin-bottom: 20px;">
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">
+              {{ showArchivedLogs ? 'Archived Shipment Logs' : 'All Shipment Logs' }}
+            </h3>
+            <p class="muted">{{ showArchivedLogs ? 'Viewing archived logs' : 'Click on a log to start scanning packages' }}</p>
+          </div>
+
+          <div v-if="!globalSearchQuery.trim() || globalSearchQuery.trim().length < 2" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
             <div v-for="log in shipmentLogs" :key="log.id"
                  class="card clickable-card"
+                 :class="{ 'archived-card': log.archived }"
                  @click="selectShipmentLog(log.id)"
                  style="cursor: pointer; transition: all 0.2s ease;">
 
@@ -1960,16 +2040,21 @@
                 <h4 style="font-size: 18px; font-weight: 600; color: #4b5563;">
                   {{ log.log_name }}
                 </h4>
-                <span :style="{
-                  background: '#f3f4f6',
-                  color: '#6b7280',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  padding: '6px 12px',
-                  borderRadius: '6px'
-                }">
-                  {{ log.cargo_type || 'Air Cargo' }}
-                </span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <span v-if="log.archived" style="background: #9ca3af; color: white; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 4px; text-transform: uppercase;">
+                    Archived
+                  </span>
+                  <span :style="{
+                    background: '#f3f4f6',
+                    color: '#6b7280',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    padding: '6px 12px',
+                    borderRadius: '6px'
+                  }">
+                    {{ log.cargo_type || 'Air Cargo' }}
+                  </span>
+                </div>
               </div>
 
               <!-- Divider -->
@@ -1992,6 +2077,26 @@
                 <p style="font-size: 13px; color: #6b7280;">
                   Uploaded by <span style="font-weight: 600; color: #374151;">{{ log.uploaded_by || 'Unknown' }}</span>
                 </p>
+              </div>
+
+              <!-- Archive/Unarchive Button -->
+              <div v-if="hasPermission('manageShipments')" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;" @click.stop>
+                <button
+                  v-if="!log.archived"
+                  class="pill small ghost"
+                  style="width: 100%;"
+                  @click="archiveShipmentLog(log.id)"
+                >
+                  Archive
+                </button>
+                <button
+                  v-else
+                  class="pill small"
+                  style="width: 100%;"
+                  @click="unarchiveShipmentLog(log.id)"
+                >
+                  Unarchive
+                </button>
               </div>
             </div>
           </div>
@@ -4947,6 +5052,13 @@ const scanInput = ref(null);
 const notFoundCount = ref(0);
 const notFoundScans = ref([]);
 const showNotFoundScans = ref(false);
+const showArchivedLogs = ref(false);
+
+// Global search state for Shipment Bin
+const globalSearchQuery = ref('');
+const globalSearchResults = ref([]);
+const isGlobalSearching = ref(false);
+let globalSearchTimeout = null;
 
 // Kebab Menu State
 const openUserKebabId = ref(null);
@@ -6230,10 +6342,8 @@ const confirmOrderAdd = async () => {
       body: JSON.stringify(newOrder),
     });
     if (response.ok) {
-      const result = await response.json();
-      // Backend returns { success: true, order: {...} }
-      // But the order from backend has snake_case, use our newOrder which has correct field names
-      orders.value.push(newOrder);
+      // Reload orders from backend to ensure data consistency
+      await loadOrders();
       loadDailySummary(); // Refresh daily summary to update Credit Card cards
       showToast('Order created successfully', 'success');
     } else {
@@ -6979,7 +7089,8 @@ const saveCustomPermissions = () => {
 // Load all shipment logs
 const loadShipmentLogs = async () => {
   try {
-    const response = await fetch('http://localhost:4000/api/shipment-logs');
+    const archivedParam = showArchivedLogs.value ? 'true' : 'false';
+    const response = await fetch(`http://localhost:4000/api/shipment-logs?archived=${archivedParam}`);
     const data = await response.json();
     if (data.success) {
       shipmentLogs.value = data.logs;
@@ -7055,11 +7166,15 @@ const confirmShipmentUpload = async () => {
     const data = await response.json();
     if (data.success) {
       shipmentModals.upload = false;
+      // Ensure we're viewing active logs (not archived)
+      showArchivedLogs.value = false;
       // Reload shipment logs
       await loadShipmentLogs();
       // Auto-select the new log
       activeShipmentLogId.value = data.shipmentLogId.toString();
       await loadShipmentItems();
+      // Refresh billing stats to update unbilled count
+      await loadBillingStats();
 
       // Show success message
       showToast(`Successfully uploaded ${data.itemsProcessed} packages`, 'success');
@@ -7100,6 +7215,8 @@ const scanPackage = async () => {
       showToast(`Package received: ${data.item.customer_name}`, 'success');
       // Reload items to show updated status
       await loadShipmentItems();
+      // Also reload billing items to update SL status in real-time on Billing Console
+      await loadBillingItems();
     } else if (data.status === 'found_in_other_log') {
       // Found in another log - ask to move
       movePackageData.item = data.item;
@@ -7153,6 +7270,8 @@ const confirmMovePackage = async () => {
       });
 
       await loadShipmentItems();
+      // Also reload billing items to update SL status in real-time on Billing Console
+      await loadBillingItems();
     } else {
       showToast(data.error || 'Failed to move package', 'error');
     }
@@ -7227,11 +7346,10 @@ const confirmShipmentDelete = async () => {
     if (data.success) {
       shipmentModals.delete = false;
 
-      // If the deleted log was the active one, clear it
-      if (activeShipmentLogId.value === shipmentDeleteTarget.value.id.toString()) {
-        activeShipmentLogId.value = '';
-        shipmentItems.value = [];
-      }
+      // Always return to the first page (card view) after deleting
+      activeShipmentLogId.value = '';
+      shipmentItems.value = [];
+      scanMessage.value = '';
 
       await loadShipmentLogs();
       showToast('Shipment log deleted successfully', 'success');
@@ -7242,6 +7360,83 @@ const confirmShipmentDelete = async () => {
     console.error('Failed to delete shipment log:', error);
     showToast('Failed to delete shipment log', 'error');
   }
+};
+
+// Archive a shipment log
+const archiveShipmentLog = async (logId) => {
+  try {
+    const response = await fetch(`http://localhost:4000/api/shipment-logs/${logId}/archive`, {
+      method: 'PATCH',
+    });
+    const data = await response.json();
+    if (data.success) {
+      await loadShipmentLogs();
+      showToast('Shipment log archived successfully', 'success');
+    } else {
+      showToast(data.error || 'Failed to archive shipment log', 'error');
+    }
+  } catch (error) {
+    console.error('Failed to archive shipment log:', error);
+    showToast('Failed to archive shipment log', 'error');
+  }
+};
+
+// Unarchive a shipment log
+const unarchiveShipmentLog = async (logId) => {
+  try {
+    const response = await fetch(`http://localhost:4000/api/shipment-logs/${logId}/unarchive`, {
+      method: 'PATCH',
+    });
+    const data = await response.json();
+    if (data.success) {
+      // Switch to active view so user can see the unarchived log
+      showArchivedLogs.value = false;
+      await loadShipmentLogs();
+      showToast('Shipment log unarchived successfully', 'success');
+    } else {
+      showToast(data.error || 'Failed to unarchive shipment log', 'error');
+    }
+  } catch (error) {
+    console.error('Failed to unarchive shipment log:', error);
+    showToast('Failed to unarchive shipment log', 'error');
+  }
+};
+
+// Watch for showArchivedLogs changes
+watch(showArchivedLogs, () => {
+  loadShipmentLogs();
+});
+
+// Watch for global search query changes with debounce
+watch(globalSearchQuery, (val) => {
+  if (globalSearchTimeout) clearTimeout(globalSearchTimeout);
+
+  if (!val || val.trim().length < 2) {
+    globalSearchResults.value = [];
+    isGlobalSearching.value = false;
+    return;
+  }
+
+  isGlobalSearching.value = true;
+  globalSearchTimeout = setTimeout(async () => {
+    try {
+      const response = await fetch(`http://localhost:4000/api/shipment-items/search?q=${encodeURIComponent(val.trim())}`);
+      const data = await response.json();
+      if (data.success) {
+        globalSearchResults.value = data.items;
+      }
+    } catch (error) {
+      console.error('Global search failed:', error);
+    } finally {
+      isGlobalSearching.value = false;
+    }
+  }, 300);
+});
+
+// Clear global search
+const clearGlobalSearch = () => {
+  globalSearchQuery.value = '';
+  globalSearchResults.value = [];
 };
 
 // Get item count for a log
@@ -8691,6 +8886,56 @@ onBeforeUnmount(() => {
 
 /* ==================== BILLING CONSOLE STYLES ==================== */
 
+/* Scrollable table with frozen header */
+.billing-table-container {
+  max-height: 500px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: white;
+}
+
+.billing-table-fixed-header {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.billing-table-fixed-header thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f8fafc;
+}
+
+.billing-table-fixed-header thead th {
+  background: #f8fafc;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.billing-table-fixed-header tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 14px;
+}
+
+.billing-table-fixed-header tbody tr:hover {
+  background: #f8fafc;
+}
+
+.billing-table-fixed-header tbody tr.empty td {
+  text-align: center;
+  padding: 40px;
+  color: #94a3b8;
+}
+
 .billing-filter-select {
   padding: 10px 16px;
   border-radius: 8px;
@@ -9682,5 +9927,11 @@ td .tag.danger {
 
 .full-width {
   grid-column: 1 / -1;
+}
+
+/* Archived shipment log card */
+.archived-card {
+  opacity: 0.7;
+  border: 2px dashed #9ca3af !important;
 }
 </style>

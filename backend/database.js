@@ -413,6 +413,12 @@ export const collectionLogQueries = {
 export const shipmentLogQueries = {
   getAll: () => db.prepare('SELECT * FROM shipment_logs ORDER BY shipment_date DESC').all(),
 
+  // Get only active (non-archived) shipment logs
+  getActive: () => db.prepare('SELECT * FROM shipment_logs WHERE archived = 0 ORDER BY shipment_date DESC').all(),
+
+  // Get only archived shipment logs
+  getArchived: () => db.prepare('SELECT * FROM shipment_logs WHERE archived = 1 ORDER BY shipment_date DESC').all(),
+
   getById: (id) => db.prepare('SELECT * FROM shipment_logs WHERE id = ?').get(id),
 
   getByDate: (date) => db.prepare('SELECT * FROM shipment_logs WHERE shipment_date = ?').all(date),
@@ -431,6 +437,18 @@ export const shipmentLogQueries = {
     const stmt = db.prepare('UPDATE shipment_logs SET log_name = ?, shipment_date = ? WHERE id = ?');
     return stmt.run(data.logName, data.shipmentDate, id);
   },
+
+  // Archive a shipment log
+  archive: (id) => {
+    const stmt = db.prepare('UPDATE shipment_logs SET archived = 1 WHERE id = ?');
+    return stmt.run(id);
+  },
+
+  // Unarchive a shipment log
+  unarchive: (id) => {
+    const stmt = db.prepare('UPDATE shipment_logs SET archived = 0 WHERE id = ?');
+    return stmt.run(id);
+  },
 };
 
 // Shipment item queries
@@ -438,6 +456,7 @@ export const shipmentItemQueries = {
   getAll: () => db.prepare('SELECT * FROM shipment_items ORDER BY created_at DESC').all(),
 
   // Get all items with shipment log info for billing console
+  // Only includes items from existing shipment logs (excludes deleted logs)
   getAllWithLogInfo: () => {
     const stmt = db.prepare(`
       SELECT
@@ -446,7 +465,7 @@ export const shipmentItemQueries = {
         sl.shipment_date as shipment_log_date,
         sl.cargo_type as shipment_cargo_type
       FROM shipment_items si
-      LEFT JOIN shipment_logs sl ON si.shipment_log_id = sl.id
+      INNER JOIN shipment_logs sl ON si.shipment_log_id = sl.id
       ORDER BY si.created_at DESC
     `);
     return stmt.all();
@@ -473,6 +492,24 @@ export const shipmentItemQueries = {
     return stmt.all(term, term, term);
   },
 
+  // Global search across all shipment items with log info (for Shipment Bin global search)
+  globalSearch: (searchTerm) => {
+    const stmt = db.prepare(`
+      SELECT
+        si.*,
+        sl.id as log_id,
+        sl.log_name as shipment_log_name,
+        sl.shipment_date as shipment_log_date,
+        sl.cargo_type as shipment_cargo_type
+      FROM shipment_items si
+      LEFT JOIN shipment_logs sl ON si.shipment_log_id = sl.id
+      WHERE si.customer_name LIKE ? OR si.package_id LIKE ? OR si.tracking_number LIKE ?
+      ORDER BY sl.shipment_date DESC, si.customer_name ASC
+    `);
+    const term = `%${searchTerm}%`;
+    return stmt.all(term, term, term);
+  },
+
   // Get items with billing information
   getBillingItems: () => {
     const stmt = db.prepare(`
@@ -484,33 +521,38 @@ export const shipmentItemQueries = {
   },
 
   // Get billing statistics
+  // Only includes items from existing shipment logs (excludes deleted logs)
   getBillingStats: () => {
     const today = new Date().toISOString().split('T')[0];
 
-    // Count unbilled packages
+    // Count unbilled packages (only from existing shipment logs)
     const unbilled = db.prepare(`
-      SELECT COUNT(*) as count FROM shipment_items
-      WHERE billing_status = 'unbilled'
+      SELECT COUNT(*) as count FROM shipment_items si
+      INNER JOIN shipment_logs sl ON si.shipment_log_id = sl.id
+      WHERE si.billing_status = 'unbilled'
     `).get().count;
 
-    // Count open packages
+    // Count open packages (only from existing shipment logs)
     const open = db.prepare(`
-      SELECT COUNT(*) as count FROM shipment_items
-      WHERE billing_status = 'Open'
+      SELECT COUNT(*) as count FROM shipment_items si
+      INNER JOIN shipment_logs sl ON si.shipment_log_id = sl.id
+      WHERE si.billing_status = 'Open'
     `).get().count;
 
-    // Count packages closed today
+    // Count packages closed today (only from existing shipment logs)
     const closedToday = db.prepare(`
-      SELECT COUNT(*) as count FROM shipment_items
-      WHERE billing_status = 'Closed'
-      AND DATE(collection_date) = ?
+      SELECT COUNT(*) as count FROM shipment_items si
+      INNER JOIN shipment_logs sl ON si.shipment_log_id = sl.id
+      WHERE si.billing_status = 'Closed'
+      AND DATE(si.collection_date) = ?
     `).get(today).count;
 
-    // Sum amount collected today
+    // Sum amount collected today (only from existing shipment logs)
     const amountCollectedToday = db.prepare(`
-      SELECT COALESCE(SUM(amount_paid), 0) as total FROM shipment_items
-      WHERE billing_status = 'Closed'
-      AND DATE(collection_date) = ?
+      SELECT COALESCE(SUM(si.amount_paid), 0) as total FROM shipment_items si
+      INNER JOIN shipment_logs sl ON si.shipment_log_id = sl.id
+      WHERE si.billing_status = 'Closed'
+      AND DATE(si.collection_date) = ?
     `).get(today).total;
 
     return {

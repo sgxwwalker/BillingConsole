@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS orders (
     status TEXT NOT NULL DEFAULT 'Ordered',
     merchant TEXT,
     method TEXT DEFAULT 'Credit Card',
+    currency TEXT DEFAULT 'JMD',
     updated_by TEXT,
     created_at DATETIME DEFAULT (datetime('now')),
     updated_at DATETIME DEFAULT (datetime('now'))
@@ -174,6 +175,7 @@ CREATE TABLE IF NOT EXISTS shipment_logs (
     shipment_date DATE NOT NULL,
     cargo_type TEXT DEFAULT 'Air Cargo',
     uploaded_by TEXT,
+    archived INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT (datetime('now'))
 );
 

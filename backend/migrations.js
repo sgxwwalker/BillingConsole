@@ -22,6 +22,12 @@ export function runMigrations() {
     // Add page visibility column (Migration 005)
     addPageVisibilityColumn();
 
+    // Add audit logs table (Migration 006)
+    addAuditLogsTable();
+
+    // Add archived column to shipment_logs (Migration 007)
+    addArchivedColumnToShipmentLogs();
+
     console.log('All migrations completed');
   } catch (error) {
     console.error('Error running migrations:', error);
@@ -249,5 +255,58 @@ function addPageVisibilityColumn() {
     }
   } catch (error) {
     console.error('  Error adding page_visibility column:', error.message);
+  }
+}
+
+/**
+ * Migration 006: Add audit_logs table for security auditing
+ */
+function addAuditLogsTable() {
+  try {
+    // Check if audit_logs table exists
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_logs'").get();
+
+    if (!tableExists) {
+      db.exec(`
+        CREATE TABLE audit_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          action TEXT NOT NULL,
+          user_id TEXT,
+          details TEXT,
+          ip_address TEXT,
+          created_at DATETIME DEFAULT (datetime('now'))
+        )
+      `);
+
+      // Create index for faster queries
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)`);
+
+      console.log('  Created audit_logs table with indexes');
+    } else {
+      console.log('  audit_logs table already exists');
+    }
+  } catch (error) {
+    console.error('  Error creating audit_logs table:', error.message);
+  }
+}
+
+/**
+ * Migration 007: Add archived column to shipment_logs table
+ */
+function addArchivedColumnToShipmentLogs() {
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(shipment_logs)").all();
+    const columnNames = tableInfo.map(col => col.name);
+
+    if (!columnNames.includes('archived')) {
+      db.exec(`ALTER TABLE shipment_logs ADD COLUMN archived INTEGER DEFAULT 0`);
+      console.log('  Added archived column to shipment_logs table');
+    } else {
+      console.log('  archived column already exists in shipment_logs');
+    }
+  } catch (error) {
+    console.error('  Error adding archived column:', error.message);
   }
 }
