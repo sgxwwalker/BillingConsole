@@ -8705,7 +8705,7 @@ onBeforeUnmount(() => {
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: var(--card-shadow);
 }
 
 .packages-card-status {
@@ -8816,7 +8816,7 @@ onBeforeUnmount(() => {
 .packages-table-shell {
   background: white;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: var(--card-shadow);
   overflow: hidden;
 }
 
@@ -8969,7 +8969,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-weight: 600;
   border: none;
@@ -9018,7 +9018,7 @@ onBeforeUnmount(() => {
   background: white;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-elevated);
   z-index: 1000;
   min-width: 120px;
   overflow: visible;
@@ -9226,7 +9226,7 @@ td .tag.danger {
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-elevated);
   z-index: 100;
   min-width: 140px;
   overflow: hidden;
@@ -9428,7 +9428,7 @@ td .tag.danger {
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 45, 98, 0.25);
+  opacity: 0.9;
 }
 
 .btn-secondary {
@@ -9462,7 +9462,7 @@ td .tag.danger {
 
 .btn-danger:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+  opacity: 0.9;
 }
 
 /* View Modal Info Grid */

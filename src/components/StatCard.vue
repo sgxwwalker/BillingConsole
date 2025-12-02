@@ -78,7 +78,7 @@ const formattedValue = computed(() => {
 }
 .stat.clickable:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-elevated);
 }
 .stat-subtitle {
   font-size: 13px;
