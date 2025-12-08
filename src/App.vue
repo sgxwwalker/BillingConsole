@@ -176,6 +176,7 @@
             <table class="billing-table-fixed-header">
             <thead>
               <tr>
+                <th style="width: 40px; text-align: center;"></th>
                 <th>Package ID</th>
                 <th>Tracking</th>
                 <th>Customer</th>
@@ -188,9 +189,22 @@
             </thead>
             <tbody>
               <tr v-if="filteredBillingItems.length === 0" class="empty">
-                <td colspan="8">{{ billingSearchQuery.trim() ? 'No packages found matching your search.' : 'Search for a customer name, package ID, or tracking number to view packages.' }}</td>
+                <td colspan="9">{{ billingSearchQuery.trim() ? 'No packages found matching your search.' : 'Search for a customer name, package ID, or tracking number to view packages.' }}</td>
               </tr>
               <tr v-for="item in paginatedBillingItems" :key="item.id">
+                <td style="text-align: center;">
+                  <!-- Air Cargo Icon -->
+                  <svg v-if="item.shipment_cargo_type === 'Air Cargo' || !item.shipment_cargo_type" width="18" height="18" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                    <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                  </svg>
+                  <!-- Ocean Cargo Icon -->
+                  <svg v-else-if="item.shipment_cargo_type === 'Ocean Cargo'" width="18" height="18" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                    <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.5 0 2.5 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+                    <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76"/>
+                    <path d="M12 2v8"/>
+                    <path d="M12 6h4"/>
+                  </svg>
+                </td>
                 <td><strong>{{ item.package_id || item.id }}</strong></td>
                 <td>{{ item.tracking_number }}</td>
                 <td>{{ item.customer_name }}</td>
