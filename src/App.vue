@@ -295,10 +295,13 @@
               <p class="packages-subtitle">Packages synced with Courier Depot API</p>
             </div>
             <div class="packages-actions">
-              <button class="pill ghost" @click="apiSyncPackages" :disabled="isSyncing">
-                {{ isSyncing ? 'Syncing...' : 'Pull from SaaS' }}
+              <div class="sync-status-indicator">
+                <span class="sync-dot" :class="syncDotClass"></span>
+                <span>{{ syncStatusLabel }}</span>
+              </div>
+              <button class="pill ghost" @click="manualRefresh" :disabled="isSyncing || isBackgroundSyncing">
+                {{ isSyncing ? 'Syncing...' : 'Refresh Now' }}
               </button>
-              <button class="pill" disabled>Push Changes (0)</button>
             </div>
           </div>
         </div>
@@ -313,8 +316,8 @@
             </div>
             <div>
               <p class="packages-card-label">API Connection</p>
-              <p class="packages-card-value">{{ apiConfigForm.baseUrl && apiConfigForm.email ? 'Connected to Courier Depot' : 'Not Connected' }}</p>
-              <p class="packages-card-meta">{{ apiConfigForm.baseUrl || 'https://api.courierdepotja.com' }}</p>
+              <p class="packages-card-value">{{ apiConfigForm.accessToken ? 'Connected to Courier Depot' : 'Not Connected' }}</p>
+              <p class="packages-card-meta">{{ apiConfigForm.baseUrl }}</p>
             </div>
           </div>
 
@@ -1678,15 +1681,46 @@
 
           <div class="form-grid">
             <label style="grid-column: 1 / -1;">
-              <span class="input-label">Authentication Endpoint</span>
+              <span class="input-label">API Base URL</span>
               <input
                 v-model="apiConfigForm.baseUrl"
                 type="url"
-                placeholder="https://api.courierdepotja.com/api/auth/signin"
+                placeholder="https://backend.courierdepotja.com"
                 :readonly="!isEditingApiConfig"
                 :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
               />
-              <p class="muted" style="margin-top: 6px; font-size: 13px;">Full endpoint URL for API authentication</p>
+              <p class="muted" style="margin-top: 6px; font-size: 13px;">Base URL for the Courier Depot API</p>
+            </label>
+
+            <label>
+              <span class="input-label">Client ID</span>
+              <input
+                v-model="apiConfigForm.clientId"
+                type="text"
+                placeholder="client_xxxxxxxxxxxx"
+                :readonly="!isEditingApiConfig"
+                :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
+              />
+              <p class="muted" style="margin-top: 6px; font-size: 13px;">X-Client-Id header value</p>
+            </label>
+
+            <label>
+              <span class="input-label">Client Secret</span>
+              <div style="position: relative;">
+                <input
+                  v-model="apiConfigForm.clientSecret"
+                  :type="showApiPassword ? 'text' : 'password'"
+                  placeholder="Enter client secret"
+                  style="padding-right: 50px;"
+                  :readonly="!isEditingApiConfig"
+                  :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
+                />
+                <button type="button" @click="showApiPassword = !showApiPassword"
+                  style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #64748b; font-size: 14px;">
+                  {{ showApiPassword ? 'Hide' : 'Show' }}
+                </button>
+              </div>
+              <p class="muted" style="margin-top: 6px; font-size: 13px;">X-Client-Secret header value</p>
             </label>
 
             <label>
@@ -1694,7 +1728,7 @@
               <input
                 v-model="apiConfigForm.email"
                 type="email"
-                placeholder="your-email@gmail.com"
+                placeholder="admin@courierdepot.com"
                 :readonly="!isEditingApiConfig"
                 :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
               />
@@ -1711,23 +1745,21 @@
                   :readonly="!isEditingApiConfig"
                   :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
                 />
-                <button type="button" @click="showApiPassword = !showApiPassword"
-                  style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #64748b; font-size: 18px;">
-                  {{ showApiPassword ? 'Hide' : 'Show' }}
-                </button>
               </div>
             </label>
 
-            <label>
-              <span class="input-label">User ID</span>
+            <label style="grid-column: 1 / -1;">
+              <span class="input-label">Access Token</span>
               <input
-                v-model="apiConfigForm.userId"
+                v-model="apiConfigForm.accessToken"
                 type="text"
-                placeholder="970"
-                :readonly="!isEditingApiConfig"
-                :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
+                placeholder="Token will be generated on successful login"
+                readonly
+                style="background: #f1f5f9; cursor: not-allowed; font-family: monospace; font-size: 12px;"
               />
-              <p class="muted" style="margin-top: 6px; font-size: 13px;">Your Courier Depot user ID for package retrieval</p>
+              <p class="muted" style="margin-top: 6px; font-size: 13px;">
+                {{ apiConfigForm.accessToken ? 'Token active' : 'No active token - click Test Connection to authenticate' }}
+              </p>
             </label>
           </div>
 
@@ -5066,12 +5098,13 @@ const newPassword = ref("");
 const apiConfig = ref(null);
 const apiSyncLogs = ref([]);
 const apiConfigForm = reactive({
-  baseUrl: "",
-  apiKey: "",
-  email: "",
-  password: "",
-  timeout: 30000,
-  environment: "production",
+  baseUrl: "https://backend.courierdepotja.com",
+  clientId: "client_xumUiGmc-1V5D_iybJXBnw",
+  clientSecret: "TGxeiZhqiJ1Xg8qCRXNtreB9PMdJ0B8h",
+  email: "admin@courierdepot.com",
+  password: "admin123",
+  accessToken: "",
+  tokenExpiry: null,
 });
 const showApiPassword = ref(false);
 const apiTestStatus = ref("");
@@ -5080,6 +5113,13 @@ const isEditingApiConfig = ref(false);
 
 // Settings Page State - Maintenance Mode
 const maintenanceMode = ref(false);
+
+// Auto-Sync State for Packages Page
+const autoSyncEnabled = ref(true);
+const autoSyncIntervalId = ref(null);
+const isBackgroundSyncing = ref(false);
+const lastSyncTimestamp = ref(null);
+const SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
 
 // Shipment Bin State
 const allShipmentLogs = ref([]);
@@ -5486,6 +5526,18 @@ const filteredPackagesForPage = computed(() => {
   }
 
   return filtered;
+});
+
+// Sync status computed properties
+const syncDotClass = computed(() => ({
+  'active': autoSyncEnabled.value && !isBackgroundSyncing.value && !isSyncing.value,
+  'syncing': isBackgroundSyncing.value || isSyncing.value,
+}));
+
+const syncStatusLabel = computed(() => {
+  if (isSyncing.value || isBackgroundSyncing.value) return 'Syncing...';
+  if (!lastSyncTimestamp.value) return 'Not synced';
+  return `Last sync: ${formatTimeAgo(lastSyncTimestamp.value)}`;
 });
 
 const readyCountLabel = computed(() => `${stats.value.ready} ready`);
@@ -6815,7 +6867,7 @@ const apiSyncPackages = async () => {
   }
 };
 
-const login = () => {
+const login = async () => {
   // Find employee by username (name) or email
   const employee = employees.find(
     (e) =>
@@ -6848,13 +6900,14 @@ const login = () => {
   profileForm.jobTitle = employee.jobTitle || employee.job_title || "";
   profileForm.department = employee.department || "";
   profileForm.photo = employee.photo || "";
-  currentPage.value = allowedPages.value.includes("dashboard") ? "dashboard" : allowedPages.value[0];
   loginError.value = "";
+
+  // Go to dashboard
+  currentPage.value = allowedPages.value.includes("dashboard") ? "dashboard" : allowedPages.value[0];
   showToast(`Welcome back, ${employee.name}!`, 'success');
 };
 
 const signOut = () => {
-  showToast('You have been signed out', 'info');
   currentUser.value = null;
   currentPage.value = "login";
 };
@@ -8287,57 +8340,351 @@ const saveApiConfig = async () => {
   }
 };
 
-// Test API connection
+// Test API connection - authenticates with Courier Depot API
 const testApiConnection = async () => {
   apiTestStatus.value = 'testing';
-  apiTestMessage.value = 'Testing connection...';
+  apiTestMessage.value = 'Authenticating with Courier Depot API...';
 
   try {
-    const response = await fetch('http://localhost:4000/api/settings/api-config/test', {
+    const loginUrl = `${apiConfigForm.baseUrl}/api/v1/auth/login`;
+
+    const response = await fetch(loginUrl, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Client-Id': apiConfigForm.clientId,
+        'X-Client-Secret': apiConfigForm.clientSecret,
+      },
+      body: JSON.stringify({
+        email: apiConfigForm.email,
+        password: apiConfigForm.password,
+      }),
     });
 
     const data = await response.json();
-    if (data.success) {
+
+    if (data.success && data.data?.access_token) {
+      apiConfigForm.accessToken = data.data.access_token;
       apiTestStatus.value = 'success';
-      apiTestMessage.value = 'Connection successful!';
+      apiTestMessage.value = `Authentication successful! Token received.`;
+      showToast('API connection successful - Token stored', 'success');
     } else {
       apiTestStatus.value = 'error';
-      apiTestMessage.value = data.message || 'Connection failed';
+      apiTestMessage.value = data.message || data.detail || 'Authentication failed';
+      showToast('API authentication failed', 'error');
     }
   } catch (error) {
     console.error('Failed to test API connection:', error);
     apiTestStatus.value = 'error';
-    apiTestMessage.value = 'Connection failed';
+    apiTestMessage.value = `Connection failed: ${error.message}`;
+    showToast('API connection failed', 'error');
   }
 
   setTimeout(() => {
     apiTestStatus.value = '';
     apiTestMessage.value = '';
-  }, 5000);
+  }, 8000);
 };
 
-// Trigger API sync
+// Trigger API sync - fetches packages from Courier Depot API
 const triggerApiSync = async () => {
+  // First ensure we have a valid token
+  if (!apiConfigForm.accessToken) {
+    showToast('No access token - Please test connection first', 'error');
+    return;
+  }
+
+  apiTestStatus.value = 'testing';
+  apiTestMessage.value = 'Syncing packages from Courier Depot API...';
+
   try {
-    const response = await fetch('http://localhost:4000/api/external/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ syncedBy: currentUser.value?.name || 'Admin' }),
+    const packagesUrl = `${apiConfigForm.baseUrl}/api/v1/packages/`;
+
+    const response = await fetch(packagesUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiConfigForm.accessToken}`,
+        'X-Client-Id': apiConfigForm.clientId,
+        'X-Client-Secret': apiConfigForm.clientSecret,
+      },
     });
 
     const data = await response.json();
-    if (data.success) {
-      showToast(`Sync completed: ${data.summary.created} created, ${data.summary.updated} updated`, 'success');
-      await loadSyncLogs();
-      await loadApiConfig();
+
+    if (data.success && data.data) {
+      const apiPackages = data.data;
+      let created = 0;
+      let updated = 0;
+
+      // Process each package from API
+      apiPackages.forEach(apiPkg => {
+        const existingIndex = packages.value.findIndex(p => p.tracking === apiPkg.tracking_number);
+
+        const packageData = {
+          tracking: apiPkg.tracking_number,
+          description: apiPkg.description || '',
+          seller: apiPkg.seller_name || '',
+          weight: apiPkg.weight || 0,
+          value: apiPkg.value || 0,
+          type: apiPkg.package_type || 'AIR',
+          status: apiPkg.paid ? 'Delivered' : (apiPkg.package_received ? 'Ready' : 'In Transit'),
+          customer: apiPkg.user?.first_name && apiPkg.user?.last_name
+            ? `${apiPkg.user.first_name} ${apiPkg.user.last_name}`
+            : 'Unknown',
+          customerEmail: apiPkg.user?.email || '',
+          mailbox: apiPkg.user?.mail_box_number || '',
+          dimensions: {
+            length: apiPkg.length || 0,
+            width: apiPkg.width || 0,
+            height: apiPkg.height || 0,
+          },
+          createdAt: apiPkg.created_at ? new Date(apiPkg.created_at * 1000).toISOString() : new Date().toISOString(),
+          updatedAt: apiPkg.updated_at ? new Date(apiPkg.updated_at * 1000).toISOString() : new Date().toISOString(),
+          syncedFromApi: true,
+        };
+
+        if (existingIndex >= 0) {
+          packages.value[existingIndex] = { ...packages.value[existingIndex], ...packageData };
+          updated++;
+        } else {
+          packages.value.push({
+            id: apiPkg.id || Date.now(),
+            ...packageData,
+          });
+          created++;
+        }
+      });
+
+      // Add sync log
+      apiSyncLogs.value.unshift({
+        id: Date.now(),
+        status: 'success',
+        message: `Synced ${apiPackages.length} packages from API`,
+        synced_by: currentUser.value?.name || 'Admin',
+        records_created: created,
+        records_updated: updated,
+        errors: 0,
+        timestamp: new Date().toISOString(),
+      });
+
+      apiTestStatus.value = 'success';
+      apiTestMessage.value = `Sync completed: ${created} created, ${updated} updated`;
+      showToast(`Sync completed: ${created} created, ${updated} updated`, 'success');
     } else {
-      showToast(data.error || 'Sync failed', 'error');
+      apiTestStatus.value = 'error';
+      apiTestMessage.value = data.message || data.detail || 'Sync failed';
+      showToast('Sync failed - check API response', 'error');
     }
   } catch (error) {
     console.error('Failed to sync:', error);
+    apiTestStatus.value = 'error';
+    apiTestMessage.value = `Sync failed: ${error.message}`;
     showToast('Sync failed', 'error');
+
+    // Add error log
+    apiSyncLogs.value.unshift({
+      id: Date.now(),
+      status: 'error',
+      message: error.message,
+      synced_by: currentUser.value?.name || 'Admin',
+      records_created: 0,
+      records_updated: 0,
+      errors: 1,
+      timestamp: new Date().toISOString(),
+    });
   }
+
+  setTimeout(() => {
+    apiTestStatus.value = '';
+    apiTestMessage.value = '';
+  }, 8000);
+};
+
+// ==================== AUTO-SYNC FUNCTIONS ====================
+
+// Map API status to local status
+const mapApiStatus = (pkg) => {
+  if (pkg.paid) return 'Delivered';
+  if (pkg.package_received) return 'Ready';
+  return 'In Transit';
+};
+
+// Process packages from API and update local state
+const processApiPackages = (apiPackages) => {
+  let created = 0;
+  let updated = 0;
+
+  apiPackages.forEach(apiPkg => {
+    // Build courier/customer name from user object
+    const courierName = `${apiPkg.user?.first_name || ''} ${apiPkg.user?.last_name || ''}`.trim() || 'Unknown';
+
+    const packageData = {
+      packageId: String(apiPkg.id),
+      trackingNumber: apiPkg.tracking_number || '',
+      customer: courierName,
+      courier: courierName,
+      altName: apiPkg.alternative_name || '',
+      description: apiPkg.description || '',
+      weight: apiPkg.weight || 0,
+      cost: apiPkg.value || 0,
+      seller: apiPkg.seller_name || '',
+      freightType: apiPkg.package_type || 'AIR',
+      status: mapApiStatus(apiPkg),
+      customerEmail: apiPkg.user?.email || '',
+      mailbox: apiPkg.user?.mail_box_number || '',
+      billingStatus: apiPkg.paid ? 'Closed' : 'Open',
+      dimensions: {
+        length: apiPkg.length || 0,
+        width: apiPkg.width || 0,
+        height: apiPkg.height || 0,
+      },
+      createdAt: apiPkg.created_at ? new Date(apiPkg.created_at * 1000).toISOString() : new Date().toISOString(),
+      updatedAt: apiPkg.updated_at ? new Date(apiPkg.updated_at * 1000).toISOString() : new Date().toISOString(),
+      syncedFromApi: true,
+    };
+
+    // Update or add package - find by trackingNumber (correct field name)
+    const existingIndex = packages.value.findIndex(p => p.trackingNumber === apiPkg.tracking_number);
+    if (existingIndex >= 0) {
+      packages.value[existingIndex] = { ...packages.value[existingIndex], ...packageData };
+      updated++;
+    } else {
+      packages.value.push(packageData);
+      created++;
+    }
+  });
+
+  return { created, updated };
+};
+
+// Fetch packages from Courier Depot API via backend proxy (avoids CORS)
+const fetchPackagesFromCourierDepot = async (showLoading = false) => {
+  if (showLoading) isSyncing.value = true;
+  else isBackgroundSyncing.value = true;
+
+  try {
+    // Re-authenticate if no token
+    if (!apiConfigForm.accessToken) {
+      await testApiConnection();
+      if (!apiConfigForm.accessToken) {
+        throw new Error('Failed to authenticate with API');
+      }
+    }
+
+    // Use backend proxy to avoid CORS issues
+    const response = await fetch('http://localhost:4000/api/courier-depot/packages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        accessToken: apiConfigForm.accessToken,
+        clientId: apiConfigForm.clientId,
+        clientSecret: apiConfigForm.clientSecret,
+        baseUrl: apiConfigForm.baseUrl,
+        syncedBy: currentUser.value?.name || 'Auto-Sync',
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      // Check if it's a 401 - token expired
+      if (response.status === 401 || result.message?.includes('401')) {
+        apiConfigForm.accessToken = '';
+        await testApiConnection();
+        if (apiConfigForm.accessToken) {
+          return fetchPackagesFromCourierDepot(showLoading);
+        }
+        throw new Error('Authentication failed');
+      }
+      throw new Error(result.message || result.error || 'Failed to fetch packages');
+    }
+
+    // The proxy returns { success, data: { success, data: [...packages] }, message }
+    const apiData = result.data;
+    if (apiData?.success && apiData?.data) {
+      const { created, updated } = processApiPackages(apiData.data);
+      lastSyncTimestamp.value = new Date();
+
+      // Add sync log
+      apiSyncLogs.value.unshift({
+        id: Date.now(),
+        status: 'success',
+        message: `Synced ${apiData.data.length} packages from API`,
+        synced_by: currentUser.value?.name || 'Auto-Sync',
+        records_created: created,
+        records_updated: updated,
+        errors: 0,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (showLoading) {
+        showToast(`Synced ${apiData.data.length} packages (${created} new, ${updated} updated)`, 'success');
+      }
+    } else {
+      throw new Error(apiData?.message || apiData?.detail || 'Failed to fetch packages');
+    }
+  } catch (error) {
+    console.error('Sync failed:', error);
+    if (showLoading) {
+      showToast(`Sync failed: ${error.message}`, 'error');
+    }
+
+    // Add error log
+    apiSyncLogs.value.unshift({
+      id: Date.now(),
+      status: 'error',
+      message: error.message,
+      synced_by: currentUser.value?.name || 'Auto-Sync',
+      records_created: 0,
+      records_updated: 0,
+      errors: 1,
+      timestamp: new Date().toISOString(),
+    });
+  } finally {
+    isSyncing.value = false;
+    isBackgroundSyncing.value = false;
+  }
+};
+
+// Start auto-sync polling
+const startAutoSync = () => {
+  if (autoSyncIntervalId.value) return;
+
+  // Immediate fetch on start
+  fetchPackagesFromCourierDepot(false);
+
+  // Set up 15-minute interval
+  autoSyncIntervalId.value = setInterval(() => {
+    if (!isSyncing.value && autoSyncEnabled.value) {
+      fetchPackagesFromCourierDepot(false);
+    }
+  }, SYNC_INTERVAL);
+};
+
+// Stop auto-sync polling
+const stopAutoSync = () => {
+  if (autoSyncIntervalId.value) {
+    clearInterval(autoSyncIntervalId.value);
+    autoSyncIntervalId.value = null;
+  }
+};
+
+// Manual refresh button handler
+const manualRefresh = () => {
+  fetchPackagesFromCourierDepot(true);
+};
+
+// Format time ago for display
+const formatTimeAgo = (date) => {
+  if (!date) return 'Never';
+  const seconds = Math.floor((new Date() - date) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
 };
 
 // Toggle maintenance mode
@@ -8704,15 +9051,53 @@ onMounted(() => {
   loadOrders();
   loadDeliveryRequests();
   loadPageVisibility();
+  // Start auto-sync for packages from Courier Depot API
+  startAutoSync();
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleClickAway);
   document.removeEventListener("click", handleClickOutside);
+  // Stop auto-sync when component unmounts
+  stopAutoSync();
 });
 </script>
 
 <style>
+/* Sync Status Indicator Styles */
+.sync-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  font-size: 13px;
+  color: white;
+}
+
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b7280;
+}
+
+.sync-dot.active {
+  background: #10b981;
+  animation: pulse 2s infinite;
+}
+
+.sync-dot.syncing {
+  background: #f59e0b;
+  animation: pulse 0.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* Packages Page Styles */
 .packages-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

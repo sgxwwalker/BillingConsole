@@ -2252,7 +2252,7 @@ app.post('/api/courier-depot/signin', async (req, res) => {
   }
 });
 
-// Proxy: Fetch packages from Courier Depot API
+// Proxy: Fetch packages from Courier Depot API (legacy endpoint)
 app.post('/api/courier-depot/sync-packages', async (req, res) => {
   try {
     const config = apiConfigQueries.get();
@@ -2300,6 +2300,57 @@ app.post('/api/courier-depot/sync-packages', async (req, res) => {
       status: 'error',
       message: `Failed to fetch packages: ${error.message}`,
       syncedBy: req.body.syncedBy || 'System',
+      recordsCreated: 0,
+      recordsUpdated: 0,
+      errors: 1,
+    });
+
+    sendError(res, error.response?.data?.message || error.message, error.response?.status || 500, { code: 'SYNC_FAILED' });
+  }
+});
+
+// Proxy: Fetch all packages from Courier Depot API v1
+app.post('/api/courier-depot/packages', async (req, res) => {
+  try {
+    const { accessToken, clientId, clientSecret, baseUrl } = req.body;
+
+    if (!accessToken || !clientId || !clientSecret || !baseUrl) {
+      return sendError(res, 'Missing required credentials (accessToken, clientId, clientSecret, baseUrl)', 400);
+    }
+
+    // Fetch packages from Courier Depot API v1
+    const response = await axios.get(`${baseUrl}/api/v1/packages/`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Client-Id': clientId,
+        'X-Client-Secret': clientSecret,
+        'Content-Type': 'application/json',
+      },
+      timeout: 30000,
+    });
+
+    const data = response.data;
+    const packageCount = data.data ? data.data.length : 0;
+
+    // Log the sync
+    apiSyncLogQueries.create({
+      status: 'success',
+      message: `Fetched ${packageCount} packages from Courier Depot API v1`,
+      syncedBy: req.body.syncedBy || 'Auto-Sync',
+      recordsCreated: 0,
+      recordsUpdated: 0,
+      errors: 0,
+    });
+
+    sendSuccess(res, data, `Fetched ${packageCount} packages successfully`);
+  } catch (error) {
+    logger.error('Courier Depot packages fetch failed:', error);
+
+    // Log the failed sync
+    apiSyncLogQueries.create({
+      status: 'error',
+      message: `Failed to fetch packages: ${error.message}`,
+      syncedBy: req.body.syncedBy || 'Auto-Sync',
       recordsCreated: 0,
       recordsUpdated: 0,
       errors: 1,
