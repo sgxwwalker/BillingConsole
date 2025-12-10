@@ -115,6 +115,14 @@ defineEmits(['update:activeTab']);
   margin-bottom: 32px;
   border-bottom: 2px solid #e2e8f0;
   padding-bottom: 2px;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-tabs button {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .settings-tab {

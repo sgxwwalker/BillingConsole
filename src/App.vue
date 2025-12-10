@@ -57,6 +57,12 @@
   <div v-else class="app-shell">
     <header class="top-nav">
       <div class="nav-left">
+        <!-- Hamburger menu button (mobile only) -->
+        <button class="hamburger-btn" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
         <div class="brand-mark small">
           <img :src="logo" alt="SG Xpress Shipping logo" />
         </div>
@@ -81,6 +87,24 @@
         </div>
       </div>
     </header>
+
+    <!-- Mobile Navigation Menu -->
+    <div class="mobile-menu-overlay" :class="{ open: mobileMenuOpen }" @click="mobileMenuOpen = false"></div>
+    <nav class="mobile-menu" :class="{ open: mobileMenuOpen }">
+      <div class="mobile-menu-header">
+        <span class="mobile-menu-title">Menu</span>
+        <button class="mobile-menu-close" @click="mobileMenuOpen = false">&times;</button>
+      </div>
+      <div class="mobile-menu-links">
+        <button v-if="pageVisibility.dashboard.enabled" @click="goTo('dashboard'); mobileMenuOpen = false" :class="{ active: currentPage === 'dashboard' }">Dashboard</button>
+        <button v-if="pageVisibility.packages.enabled" @click="goTo('packages'); mobileMenuOpen = false" :class="{ active: currentPage === 'packages' }">Packages</button>
+        <button v-if="pageVisibility['shipment-bin'].enabled" @click="goTo('shipment-bin'); mobileMenuOpen = false" :class="{ active: currentPage === 'shipment-bin' }">Shipment Bin</button>
+        <button v-if="pageVisibility.orders.enabled" @click="goTo('orders'); mobileMenuOpen = false" :class="{ active: currentPage === 'orders' }">SGX Order</button>
+        <button v-if="pageVisibility['delivery-requests'].enabled" @click="goTo('delivery-requests'); mobileMenuOpen = false" :class="{ active: currentPage === 'delivery-requests' }">Delivery Request</button>
+        <button v-if="pageVisibility.summary.enabled" @click="goTo('summary'); mobileMenuOpen = false" :class="{ active: currentPage === 'summary' }">Daily Summary</button>
+        <button v-if="isAdmin" @click="goTo('settings'); mobileMenuOpen = false" :class="{ active: currentPage === 'settings' }">Settings</button>
+      </div>
+    </nav>
 
     <main class="content with-top-nav">
       <section v-if="currentPage === 'dashboard'" class="panel" id="dashboard">
@@ -1338,7 +1362,7 @@
         </div>
 
         <!-- Settings Navigation Tabs -->
-        <div style="display: flex; gap: 8px; margin-bottom: 32px; border-bottom: 2px solid #e2e8f0; padding-bottom: 2px;">
+        <div class="settings-tabs">
           <button
             @click="activeSettingsTab = 'environment'"
             :style="{
@@ -1577,13 +1601,13 @@
             </div>
 
             <!-- Section Header with Search -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div class="section-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
               <h3 style="font-size: 22px; font-weight: 600; color: #111827; margin: 0;">Users</h3>
               <input
                 v-model="userSearchFilter"
                 type="text"
                 placeholder="Search users..."
-                style="padding: 10px 16px; border: 1px solid #d1d5db; border-radius: 8px; width: 300px; font-size: 14px;"
+                style="padding: 10px 16px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%; max-width: 300px; font-size: 14px;"
               />
             </div>
 
@@ -1847,7 +1871,7 @@
                   </button>
                 </div>
               </div>
-              <select v-model="implementedNotificationCategoryFilter" style="width: 180px;">
+              <select v-model="implementedNotificationCategoryFilter" style="width: 100%; max-width: 180px;">
                 <option v-for="cat in implementedNotificationCategories" :key="cat" :value="cat">
                   {{ cat === 'all' ? 'All Categories' : cat }}
                 </option>
@@ -5025,6 +5049,7 @@ const lastSyncTime = ref("");
 const lastSyncDetails = ref("");
 
 const profileMenuOpen = ref(false);
+const mobileMenuOpen = ref(false);
 const viewPackage = ref(null);
 const adminEditId = ref("");
 const adminUserForm = reactive({
@@ -8340,37 +8365,39 @@ const saveApiConfig = async () => {
   }
 };
 
-// Test API connection - authenticates with Courier Depot API
+// Test API connection - authenticates with Courier Depot API via backend proxy
 const testApiConnection = async () => {
   apiTestStatus.value = 'testing';
   apiTestMessage.value = 'Authenticating with Courier Depot API...';
 
   try {
-    const loginUrl = `${apiConfigForm.baseUrl}/api/v1/auth/login`;
-
-    const response = await fetch(loginUrl, {
+    // Use backend proxy to avoid CORS issues
+    const response = await fetch('http://localhost:4000/api/courier-depot/auth', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Client-Id': apiConfigForm.clientId,
-        'X-Client-Secret': apiConfigForm.clientSecret,
       },
       body: JSON.stringify({
+        baseUrl: apiConfigForm.baseUrl,
+        clientId: apiConfigForm.clientId,
+        clientSecret: apiConfigForm.clientSecret,
         email: apiConfigForm.email,
         password: apiConfigForm.password,
       }),
     });
 
-    const data = await response.json();
+    const result = await response.json();
 
-    if (data.success && data.data?.access_token) {
-      apiConfigForm.accessToken = data.data.access_token;
+    // The proxy returns { success, data: { success, data: { access_token } }, message }
+    const apiData = result.data;
+    if (apiData?.success && apiData?.data?.access_token) {
+      apiConfigForm.accessToken = apiData.data.access_token;
       apiTestStatus.value = 'success';
       apiTestMessage.value = `Authentication successful! Token received.`;
       showToast('API connection successful - Token stored', 'success');
     } else {
       apiTestStatus.value = 'error';
-      apiTestMessage.value = data.message || data.detail || 'Authentication failed';
+      apiTestMessage.value = result.message || apiData?.message || apiData?.detail || 'Authentication failed';
       showToast('API authentication failed', 'error');
     }
   } catch (error) {
@@ -8386,7 +8413,7 @@ const testApiConnection = async () => {
   }, 8000);
 };
 
-// Trigger API sync - fetches packages from Courier Depot API
+// Trigger API sync - fetches packages from Courier Depot API via backend proxy
 const triggerApiSync = async () => {
   // First ensure we have a valid token
   if (!apiConfigForm.accessToken) {
@@ -8398,68 +8425,32 @@ const triggerApiSync = async () => {
   apiTestMessage.value = 'Syncing packages from Courier Depot API...';
 
   try {
-    const packagesUrl = `${apiConfigForm.baseUrl}/api/v1/packages/`;
-
-    const response = await fetch(packagesUrl, {
-      method: 'GET',
+    // Use backend proxy to avoid CORS issues
+    const response = await fetch('http://localhost:4000/api/courier-depot/packages', {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiConfigForm.accessToken}`,
-        'X-Client-Id': apiConfigForm.clientId,
-        'X-Client-Secret': apiConfigForm.clientSecret,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        accessToken: apiConfigForm.accessToken,
+        clientId: apiConfigForm.clientId,
+        clientSecret: apiConfigForm.clientSecret,
+        baseUrl: apiConfigForm.baseUrl,
+        syncedBy: currentUser.value?.name || 'Admin',
+      }),
     });
 
-    const data = await response.json();
+    const result = await response.json();
+    const apiData = result.data;
 
-    if (data.success && data.data) {
-      const apiPackages = data.data;
-      let created = 0;
-      let updated = 0;
-
-      // Process each package from API
-      apiPackages.forEach(apiPkg => {
-        const existingIndex = packages.value.findIndex(p => p.tracking === apiPkg.tracking_number);
-
-        const packageData = {
-          tracking: apiPkg.tracking_number,
-          description: apiPkg.description || '',
-          seller: apiPkg.seller_name || '',
-          weight: apiPkg.weight || 0,
-          value: apiPkg.value || 0,
-          type: apiPkg.package_type || 'AIR',
-          status: apiPkg.paid ? 'Delivered' : (apiPkg.package_received ? 'Ready' : 'In Transit'),
-          customer: apiPkg.user?.first_name && apiPkg.user?.last_name
-            ? `${apiPkg.user.first_name} ${apiPkg.user.last_name}`
-            : 'Unknown',
-          customerEmail: apiPkg.user?.email || '',
-          mailbox: apiPkg.user?.mail_box_number || '',
-          dimensions: {
-            length: apiPkg.length || 0,
-            width: apiPkg.width || 0,
-            height: apiPkg.height || 0,
-          },
-          createdAt: apiPkg.created_at ? new Date(apiPkg.created_at * 1000).toISOString() : new Date().toISOString(),
-          updatedAt: apiPkg.updated_at ? new Date(apiPkg.updated_at * 1000).toISOString() : new Date().toISOString(),
-          syncedFromApi: true,
-        };
-
-        if (existingIndex >= 0) {
-          packages.value[existingIndex] = { ...packages.value[existingIndex], ...packageData };
-          updated++;
-        } else {
-          packages.value.push({
-            id: apiPkg.id || Date.now(),
-            ...packageData,
-          });
-          created++;
-        }
-      });
+    if (apiData?.success && apiData?.data) {
+      const { created, updated } = processApiPackages(apiData.data);
 
       // Add sync log
       apiSyncLogs.value.unshift({
         id: Date.now(),
         status: 'success',
-        message: `Synced ${apiPackages.length} packages from API`,
+        message: `Synced ${apiData.data.length} packages from API`,
         synced_by: currentUser.value?.name || 'Admin',
         records_created: created,
         records_updated: updated,
@@ -8472,7 +8463,7 @@ const triggerApiSync = async () => {
       showToast(`Sync completed: ${created} created, ${updated} updated`, 'success');
     } else {
       apiTestStatus.value = 'error';
-      apiTestMessage.value = data.message || data.detail || 'Sync failed';
+      apiTestMessage.value = result.message || apiData?.message || apiData?.detail || 'Sync failed';
       showToast('Sync failed - check API response', 'error');
     }
   } catch (error) {

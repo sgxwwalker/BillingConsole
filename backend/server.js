@@ -2227,7 +2227,7 @@ app.get('/api/settings/sync-logs', (req, res) => {
 
 // ==================== COURIER DEPOT API PROXY ENDPOINTS ====================
 
-// Proxy: Sign in to Courier Depot API
+// Proxy: Sign in to Courier Depot API (using stored config)
 app.post('/api/courier-depot/signin', async (req, res) => {
   try {
     const config = apiConfigQueries.get();
@@ -2249,6 +2249,35 @@ app.post('/api/courier-depot/signin', async (req, res) => {
   } catch (error) {
     logger.error('Courier Depot signin failed:', error);
     sendError(res, error.response?.data?.message || error.message, error.response?.status || 500, { code: 'AUTH_FAILED' });
+  }
+});
+
+// Proxy: Authenticate with Courier Depot API v1 (using request body credentials)
+app.post('/api/courier-depot/auth', async (req, res) => {
+  try {
+    const { baseUrl, clientId, clientSecret, email, password } = req.body;
+
+    if (!baseUrl || !clientId || !clientSecret || !email || !password) {
+      return sendError(res, 'Missing required credentials (baseUrl, clientId, clientSecret, email, password)', 400);
+    }
+
+    // Authenticate with Courier Depot API v1
+    const response = await axios.post(`${baseUrl}/api/v1/auth/login`, {
+      email,
+      password,
+    }, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Client-Id': clientId,
+        'X-Client-Secret': clientSecret,
+      },
+    });
+
+    sendSuccess(res, response.data, 'Authentication successful');
+  } catch (error) {
+    logger.error('Courier Depot auth failed:', error);
+    sendError(res, error.response?.data?.message || error.response?.data?.detail || error.message, error.response?.status || 500, { code: 'AUTH_FAILED' });
   }
 });
 
