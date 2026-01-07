@@ -2182,7 +2182,7 @@ app.post('/api/settings/api-config/test', async (req, res) => {
       return sendError(res, 'API credentials (email and password) not configured', 400);
     }
 
-    // Test authentication with the Courier Depot API
+    // Test authentication with the CDJ SaaS API
     // Configure HTTPS agent for proxy and SSL support
     const httpsAgent = new https.Agent({
       rejectUnauthorized: false, // Accept self-signed certificates if needed
@@ -2225,18 +2225,18 @@ app.get('/api/settings/sync-logs', (req, res) => {
   }
 });
 
-// ==================== COURIER DEPOT API PROXY ENDPOINTS ====================
+// ==================== CDJ SAAS API PROXY ENDPOINTS ====================
 
-// Proxy: Sign in to Courier Depot API (using stored config)
+// Proxy: Sign in to CDJ SaaS API (using stored config)
 app.post('/api/courier-depot/signin', async (req, res) => {
   try {
     const config = apiConfigQueries.get();
 
     if (!config || !config.base_url || !config.email || !config.password) {
-      return sendError(res, 'Courier Depot API not configured. Please configure in Settings.', 400);
+      return sendError(res, 'CDJ SaaS API not configured. Please configure in Settings.', 400);
     }
 
-    // Authenticate with Courier Depot API
+    // Authenticate with CDJ SaaS API
     const response = await axios.post(`${config.base_url}/api/auth/signin`, {
       email: config.email,
       password: config.password,
@@ -2247,25 +2247,73 @@ app.post('/api/courier-depot/signin', async (req, res) => {
 
     sendSuccess(res, response.data, 'Authentication successful');
   } catch (error) {
-    logger.error('Courier Depot signin failed:', error);
+    logger.error('CDJ SaaS signin failed:', error);
     sendError(res, error.response?.data?.message || error.message, error.response?.status || 500, { code: 'AUTH_FAILED' });
   }
 });
 
-// Proxy: Authenticate with Courier Depot API v1 (using request body credentials)
+// reCAPTCHA verification helper
+async function verifyRecaptcha(token) {
+  const secretKey = process.env.RECAPTCHA_SECRET_KEY || '6LcPdDIsAAAAAPe8JL_BmQm5Bnl0ltl7ceeg_KJc';
+  const recaptchaEnabled = process.env.VITE_RECAPTCHA_ENABLED !== 'false';
+
+  if (!recaptchaEnabled) {
+    return { success: true, message: 'reCAPTCHA disabled' };
+  }
+
+  if (!token) {
+    return { success: false, message: 'reCAPTCHA token is required' };
+  }
+
+  try {
+    const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
+      params: {
+        secret: secretKey,
+        response: token,
+      },
+    });
+
+    if (response.data.success) {
+      return { success: true, score: response.data.score };
+    } else {
+      return { success: false, message: 'reCAPTCHA verification failed', errors: response.data['error-codes'] };
+    }
+  } catch (error) {
+    logger.error('reCAPTCHA verification error:', error);
+    return { success: false, message: 'reCAPTCHA verification error' };
+  }
+}
+
+// Proxy: Authenticate with CDJ SaaS API v1 (using request body credentials)
 app.post('/api/courier-depot/auth', async (req, res) => {
   try {
-    const { baseUrl, clientId, clientSecret, email, password } = req.body;
+    const { baseUrl, clientId, clientSecret, email, password, recaptchaToken, serverSecret } = req.body;
 
     if (!baseUrl || !clientId || !clientSecret || !email || !password) {
       return sendError(res, 'Missing required credentials (baseUrl, clientId, clientSecret, email, password)', 400);
     }
 
-    // Authenticate with Courier Depot API v1
-    const response = await axios.post(`${baseUrl}/api/v1/auth/login`, {
+    // Verify reCAPTCHA if enabled (skip for server-to-server auth with serverSecret)
+    if (!serverSecret) {
+      const recaptchaResult = await verifyRecaptcha(recaptchaToken);
+      if (!recaptchaResult.success && process.env.VITE_RECAPTCHA_ENABLED !== 'false') {
+        return sendError(res, recaptchaResult.message || 'reCAPTCHA verification failed', 403, { code: 'RECAPTCHA_FAILED' });
+      }
+    }
+
+    // Use server-login endpoint with server secret
+    const loginPayload = {
       email,
       password,
-    }, {
+    };
+
+    // Add server_secret if provided
+    if (serverSecret) {
+      loginPayload.server_secret = serverSecret;
+    }
+
+    // Authenticate with CDJ SaaS API v1 using server-login
+    const response = await axios.post(`${baseUrl}/api/v1/auth/server-login`, loginPayload, {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
@@ -2276,26 +2324,26 @@ app.post('/api/courier-depot/auth', async (req, res) => {
 
     sendSuccess(res, response.data, 'Authentication successful');
   } catch (error) {
-    logger.error('Courier Depot auth failed:', error);
+    logger.error('CDJ SaaS auth failed:', error);
     sendError(res, error.response?.data?.message || error.response?.data?.detail || error.message, error.response?.status || 500, { code: 'AUTH_FAILED' });
   }
 });
 
-// Proxy: Fetch packages from Courier Depot API (legacy endpoint)
+// Proxy: Fetch packages from CDJ SaaS API (legacy endpoint)
 app.post('/api/courier-depot/sync-packages', async (req, res) => {
   try {
     const config = apiConfigQueries.get();
     const { accessToken } = req.body;
 
     if (!config || !config.base_url || !config.user_id) {
-      return sendError(res, 'Courier Depot API not configured. Please configure API settings.', 400);
+      return sendError(res, 'CDJ SaaS API not configured. Please configure API settings.', 400);
     }
 
     if (!accessToken) {
       return sendError(res, 'Access token is required', 400);
     }
 
-    // Fetch packages from Courier Depot API using user_id from config
+    // Fetch packages from CDJ SaaS API using user_id from config
     const response = await axios.get(`${config.base_url}/userpackage/${config.user_id}`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -2313,7 +2361,7 @@ app.post('/api/courier-depot/sync-packages', async (req, res) => {
     // Log the sync
     apiSyncLogQueries.create({
       status: 'success',
-      message: `Fetched ${packageCount} packages from Courier Depot API`,
+      message: `Fetched ${packageCount} packages from CDJ SaaS API`,
       syncedBy: req.body.syncedBy || 'System',
       recordsCreated: 0,
       recordsUpdated: 0,
@@ -2322,7 +2370,7 @@ app.post('/api/courier-depot/sync-packages', async (req, res) => {
 
     sendSuccess(res, { packages }, `Fetched ${packageCount} packages successfully`);
   } catch (error) {
-    logger.error('Courier Depot package fetch failed:', error);
+    logger.error('CDJ SaaS package fetch failed:', error);
 
     // Log the failed sync
     apiSyncLogQueries.create({
@@ -2338,7 +2386,7 @@ app.post('/api/courier-depot/sync-packages', async (req, res) => {
   }
 });
 
-// Proxy: Fetch all packages from Courier Depot API v1
+// Proxy: Fetch all packages from CDJ SaaS API v1
 app.post('/api/courier-depot/packages', async (req, res) => {
   try {
     const { accessToken, clientId, clientSecret, baseUrl } = req.body;
@@ -2347,8 +2395,8 @@ app.post('/api/courier-depot/packages', async (req, res) => {
       return sendError(res, 'Missing required credentials (accessToken, clientId, clientSecret, baseUrl)', 400);
     }
 
-    // Fetch packages from Courier Depot API v1
-    const response = await axios.get(`${baseUrl}/api/v1/packages/`, {
+    // Fetch packages from CDJ SaaS API v1 (no trailing slash)
+    const response = await axios.get(`${baseUrl}/api/v1/packages`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'X-Client-Id': clientId,
@@ -2364,7 +2412,7 @@ app.post('/api/courier-depot/packages', async (req, res) => {
     // Log the sync
     apiSyncLogQueries.create({
       status: 'success',
-      message: `Fetched ${packageCount} packages from Courier Depot API v1`,
+      message: `Fetched ${packageCount} packages from CDJ SaaS API v1`,
       syncedBy: req.body.syncedBy || 'Auto-Sync',
       recordsCreated: 0,
       recordsUpdated: 0,
@@ -2373,7 +2421,7 @@ app.post('/api/courier-depot/packages', async (req, res) => {
 
     sendSuccess(res, data, `Fetched ${packageCount} packages successfully`);
   } catch (error) {
-    logger.error('Courier Depot packages fetch failed:', error);
+    logger.error('CDJ SaaS packages fetch failed:', error);
 
     // Log the failed sync
     apiSyncLogQueries.create({

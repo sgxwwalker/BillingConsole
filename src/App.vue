@@ -45,9 +45,13 @@
           </label>
         </div>
 
+        <!-- reCAPTCHA v3 badge shown automatically by Google -->
+
         <p v-if="loginError" class="error-text">{{ loginError }}</p>
 
-        <button class="pill full login-button" type="submit">Sign In</button>
+        <button class="pill full login-button" type="submit" :disabled="loginLoading">
+          {{ loginLoading ? 'Signing in...' : 'Sign In' }}
+        </button>
       </form>
 
       <p class="login-footer">Need access? Contact your system administrator</p>
@@ -316,7 +320,7 @@
           <div class="packages-header-content">
             <div>
               <h1 class="packages-title">Packages</h1>
-              <p class="packages-subtitle">Packages synced with Courier Depot API</p>
+              <p class="packages-subtitle">Packages synced with CDJ SaaS API</p>
             </div>
             <div class="packages-actions">
               <div class="sync-status-indicator">
@@ -340,7 +344,7 @@
             </div>
             <div>
               <p class="packages-card-label">API Connection</p>
-              <p class="packages-card-value">{{ apiConfigForm.accessToken ? 'Connected to Courier Depot' : 'Not Connected' }}</p>
+              <p class="packages-card-value">{{ apiConfigForm.accessToken ? 'Connected to CDJ SaaS' : 'Not Connected' }}</p>
               <p class="packages-card-meta">{{ apiConfigForm.baseUrl }}</p>
             </div>
           </div>
@@ -415,7 +419,7 @@
             </thead>
             <tbody>
               <tr v-if="!filteredPackagesForPage.length" class="empty">
-                <td colspan="10">No packages yet. Click "Pull from SaaS" to sync packages from Courier Depot.</td>
+                <td colspan="10">No packages yet. Click "Pull from SaaS" to sync packages from CDJ SaaS.</td>
               </tr>
               <tr v-for="pkg in filteredPackagesForPage" :key="pkg.packageId">
                 <td><input type="checkbox" /></td>
@@ -1689,8 +1693,8 @@
           <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Courier Depot API Configuration</h3>
-                <p class="muted">Configure Courier Depot SaaS platform integration and authentication</p>
+                <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">CDJ SaaS API Configuration</h3>
+                <p class="muted">Configure CDJ SaaS platform integration and server authentication</p>
               </div>
               <button
                 v-if="!isEditingApiConfig"
@@ -1709,11 +1713,11 @@
               <input
                 v-model="apiConfigForm.baseUrl"
                 type="url"
-                placeholder="https://backend.courierdepotja.com"
+                placeholder="https://api.courierdepots.com"
                 :readonly="!isEditingApiConfig"
                 :style="!isEditingApiConfig ? 'background: #f1f5f9; cursor: not-allowed;' : ''"
               />
-              <p class="muted" style="margin-top: 6px; font-size: 13px;">Base URL for the Courier Depot API</p>
+              <p class="muted" style="margin-top: 6px; font-size: 13px;">Base URL for the CDJ SaaS API</p>
             </label>
 
             <label>
@@ -4548,6 +4552,27 @@ const loginForm = reactive({
   rememberMe: initialCreds.rememberMe || false
 });
 const loginError = ref("");
+const loginLoading = ref(false);
+
+// reCAPTCHA v3 configuration
+const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LcPdDIsAAAAADEZ2Ih9WgpO2iJ74JNOR952EXOf';
+const recaptchaEnabled = import.meta.env.VITE_RECAPTCHA_ENABLED !== 'false';
+const serverSecret = import.meta.env.VITE_SERVER_SECRET || 'N9Y26AK51tAZYMMhyytCSiR9BfmdKRGnlICFAxj3whE';
+
+// Get reCAPTCHA v3 token (returns a Promise)
+const getRecaptchaToken = async (action = 'login') => {
+  if (typeof grecaptcha !== 'undefined' && recaptchaEnabled) {
+    try {
+      await grecaptcha.ready(() => {});
+      const token = await grecaptcha.execute(recaptchaSiteKey, { action });
+      return token;
+    } catch (error) {
+      console.error('reCAPTCHA error:', error);
+      return null;
+    }
+  }
+  return null;
+};
 
 // Toast notifications
 const toasts = ref([]);
@@ -5033,7 +5058,7 @@ const apiUpdateForm = reactive({
 });
 const apiMessage = ref("");
 
-// Courier Depot API Integration (credentials now stored in backend)
+// CDJ SaaS API Integration (credentials now stored in backend)
 const courierDepotApi = reactive({
   accessToken: null,
   tokenExpiry: null,
@@ -5123,7 +5148,7 @@ const newPassword = ref("");
 const apiConfig = ref(null);
 const apiSyncLogs = ref([]);
 const apiConfigForm = reactive({
-  baseUrl: "https://backend.courierdepotja.com",
+  baseUrl: "https://api.courierdepots.com",
   clientId: "client_xumUiGmc-1V5D_iybJXBnw",
   clientSecret: "TGxeiZhqiJ1Xg8qCRXNtreB9PMdJ0B8h",
   email: "admin@courierdepot.com",
@@ -6647,7 +6672,7 @@ const resetApiUpdate = () => {
   apiMessage.value = "";
 };
 
-// Courier Depot API Functions (via backend proxy)
+// CDJ SaaS API Functions (via backend proxy)
 const courierDepotSignin = async () => {
   try {
     const response = await fetch('http://localhost:4000/api/courier-depot/signin', {
@@ -6669,7 +6694,7 @@ const courierDepotSignin = async () => {
 
     return true;
   } catch (error) {
-    console.error('Courier Depot signin error:', error);
+    console.error('CDJ SaaS signin error:', error);
     apiSyncStatus.value = `Authentication failed: ${error.message}`;
     courierDepotApi.isAuthenticated = false;
     return false;
@@ -6693,7 +6718,7 @@ const syncPackagesFromCourierDepot = async () => {
     }
 
     // Fetch packages via backend proxy
-    apiSyncStatus.value = "Fetching packages from Courier Depot...";
+    apiSyncStatus.value = "Fetching packages from CDJ SaaS...";
     const response = await fetch('http://localhost:4000/api/courier-depot/sync-packages', {
       method: 'POST',
       headers: {
@@ -6794,10 +6819,10 @@ const syncPackagesFromCourierDepot = async () => {
           paymentMethod: apiPkg.packageMethod || 'Cash',
           freightType: apiPkg.type || 'AIR',
           dateUpdated: new Date().toISOString().split('T')[0],
-          updatedBy: 'Courier Depot API',
+          updatedBy: 'CDJ SaaS API',
           collected: apiPkg.packageRecieved || false,
           archived: false, // Don't auto-archive synced packages
-          // New Courier Depot fields
+          // New CDJ SaaS fields
           altName: apiPkg.altName || '',
           reason: apiPkg.reason || '',
           seller: apiPkg.seller || '',
@@ -8365,13 +8390,13 @@ const saveApiConfig = async () => {
   }
 };
 
-// Test API connection - authenticates with Courier Depot API via backend proxy
+// Test API connection - authenticates with CDJ SaaS API via backend proxy
 const testApiConnection = async () => {
   apiTestStatus.value = 'testing';
-  apiTestMessage.value = 'Authenticating with Courier Depot API...';
+  apiTestMessage.value = 'Authenticating with CDJ SaaS API (server-login)...';
 
   try {
-    // Use backend proxy to avoid CORS issues
+    // Use backend proxy to avoid CORS issues - now uses server-login endpoint
     const response = await fetch('http://localhost:4000/api/courier-depot/auth', {
       method: 'POST',
       headers: {
@@ -8383,6 +8408,8 @@ const testApiConnection = async () => {
         clientSecret: apiConfigForm.clientSecret,
         email: apiConfigForm.email,
         password: apiConfigForm.password,
+        serverSecret: serverSecret, // Include server secret for server-login
+        recaptchaToken: null, // No reCAPTCHA for test connection (backend validates)
       }),
     });
 
@@ -8394,7 +8421,13 @@ const testApiConnection = async () => {
       apiConfigForm.accessToken = apiData.data.access_token;
       apiTestStatus.value = 'success';
       apiTestMessage.value = `Authentication successful! Token received.`;
-      showToast('API connection successful - Token stored', 'success');
+      showToast('CDJ SaaS API connection successful - Token stored', 'success');
+    } else if (apiData?.access_token) {
+      // Direct token response
+      apiConfigForm.accessToken = apiData.access_token;
+      apiTestStatus.value = 'success';
+      apiTestMessage.value = `Authentication successful! Token received.`;
+      showToast('CDJ SaaS API connection successful - Token stored', 'success');
     } else {
       apiTestStatus.value = 'error';
       apiTestMessage.value = result.message || apiData?.message || apiData?.detail || 'Authentication failed';
@@ -8413,7 +8446,7 @@ const testApiConnection = async () => {
   }, 8000);
 };
 
-// Trigger API sync - fetches packages from Courier Depot API via backend proxy
+// Trigger API sync - fetches packages from CDJ SaaS API via backend proxy
 const triggerApiSync = async () => {
   // First ensure we have a valid token
   if (!apiConfigForm.accessToken) {
@@ -8422,7 +8455,7 @@ const triggerApiSync = async () => {
   }
 
   apiTestStatus.value = 'testing';
-  apiTestMessage.value = 'Syncing packages from Courier Depot API...';
+  apiTestMessage.value = 'Syncing packages from CDJ SaaS API...';
 
   try {
     // Use backend proxy to avoid CORS issues
@@ -8548,7 +8581,7 @@ const processApiPackages = (apiPackages) => {
   return { created, updated };
 };
 
-// Fetch packages from Courier Depot API via backend proxy (avoids CORS)
+// Fetch packages from CDJ SaaS API via backend proxy (avoids CORS)
 const fetchPackagesFromCourierDepot = async (showLoading = false) => {
   if (showLoading) isSyncing.value = true;
   else isBackgroundSyncing.value = true;
@@ -8732,7 +8765,7 @@ const loadPackagesFromBackend = async () => {
           collected: Boolean(pkg.collected),
           deleted: Boolean(pkg.deleted),
           archived: Boolean(pkg.archived),
-          // Additional Courier Depot fields
+          // Additional CDJ SaaS fields
           altName: pkg.altName || '',
           reason: pkg.reason || '',
           seller: pkg.seller || '',
@@ -9042,7 +9075,7 @@ onMounted(() => {
   loadOrders();
   loadDeliveryRequests();
   loadPageVisibility();
-  // Start auto-sync for packages from Courier Depot API
+  // Start auto-sync for packages from CDJ SaaS API
   startAutoSync();
 });
 
