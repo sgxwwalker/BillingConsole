@@ -2127,14 +2127,17 @@ app.post('/api/roles/:id/permissions', (req, res) => {
 // Get API configuration
 app.get('/api/settings/api-config', (req, res) => {
   try {
-    let config = apiConfigQueries.get();
+    // Get configuration from environment variables
+    const config = {
+      base_url: process.env.CDJ_SAAS_BASE_URL || 'https://api.courierdepots.com',
+      api_key: process.env.CDJ_SAAS_CLIENT_ID,
+      client_secret: process.env.CDJ_SAAS_CLIENT_SECRET,
+      email: process.env.CDJ_SAAS_EMAIL,
+      password: '********', // Never send actual password
+      server_secret: process.env.CDJ_SAAS_SERVER_SECRET
+    };
 
-    // Don't send password in response (security)
-    if (config && config.password) {
-      config = { ...config, password: '********' };
-    }
-
-    sendSuccess(res, { config: config || {} }, 'API configuration fetched successfully');
+    sendSuccess(res, { config }, 'API configuration fetched successfully');
   } catch (error) {
     logger.error('fetching API config:', error);
     sendError(res, 'Failed to fetch API configuration', 500);
@@ -2225,215 +2228,56 @@ app.get('/api/settings/sync-logs', (req, res) => {
   }
 });
 
-// ==================== CDJ SAAS API PROXY ENDPOINTS ====================
+// ==================== CDJ SAAS API CORS PROXY (NO LOCAL STORAGE) ====================
 
-// Proxy: Sign in to CDJ SaaS API (using stored config)
-app.post('/api/courier-depot/signin', async (req, res) => {
+// Generic CDJ API proxy to bypass CORS (does not store data locally)
+app.all('/api/cdj-proxy/*', async (req, res) => {
   try {
-    const config = apiConfigQueries.get();
+    const cdjPath = req.params[0]; // Everything after /api/cdj-proxy/
+    const baseUrl = process.env.CDJ_SAAS_BASE_URL || 'https://api.courierdepots.com/';
+    const fullUrl = `${baseUrl}${cdjPath}`;
 
-    if (!config || !config.base_url || !config.email || !config.password) {
-      return sendError(res, 'CDJ SaaS API not configured. Please configure in Settings.', 400);
-    }
-
-    // Authenticate with CDJ SaaS API
-    const response = await axios.post(`${config.base_url}/api/auth/signin`, {
-      email: config.email,
-      password: config.password,
-    }, {
-      timeout: config.timeout || 30000,
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    sendSuccess(res, response.data, 'Authentication successful');
-  } catch (error) {
-    logger.error('CDJ SaaS signin failed:', error);
-    sendError(res, error.response?.data?.message || error.message, error.response?.status || 500, { code: 'AUTH_FAILED' });
-  }
-});
-
-// reCAPTCHA verification helper
-async function verifyRecaptcha(token) {
-  const secretKey = process.env.RECAPTCHA_SECRET_KEY || '6LcPdDIsAAAAAPe8JL_BmQm5Bnl0ltl7ceeg_KJc';
-  const recaptchaEnabled = process.env.VITE_RECAPTCHA_ENABLED !== 'false';
-
-  if (!recaptchaEnabled) {
-    return { success: true, message: 'reCAPTCHA disabled' };
-  }
-
-  if (!token) {
-    return { success: false, message: 'reCAPTCHA token is required' };
-  }
-
-  try {
-    const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
-      params: {
-        secret: secretKey,
-        response: token,
-      },
-    });
-
-    if (response.data.success) {
-      return { success: true, score: response.data.score };
-    } else {
-      return { success: false, message: 'reCAPTCHA verification failed', errors: response.data['error-codes'] };
-    }
-  } catch (error) {
-    logger.error('reCAPTCHA verification error:', error);
-    return { success: false, message: 'reCAPTCHA verification error' };
-  }
-}
-
-// Proxy: Authenticate with CDJ SaaS API v1 (using request body credentials)
-app.post('/api/courier-depot/auth', async (req, res) => {
-  try {
-    const { baseUrl, clientId, clientSecret, email, password, recaptchaToken, serverSecret } = req.body;
-
-    if (!baseUrl || !clientId || !clientSecret || !email || !password) {
-      return sendError(res, 'Missing required credentials (baseUrl, clientId, clientSecret, email, password)', 400);
-    }
-
-    // Verify reCAPTCHA if enabled (skip for server-to-server auth with serverSecret)
-    if (!serverSecret) {
-      const recaptchaResult = await verifyRecaptcha(recaptchaToken);
-      if (!recaptchaResult.success && process.env.VITE_RECAPTCHA_ENABLED !== 'false') {
-        return sendError(res, recaptchaResult.message || 'reCAPTCHA verification failed', 403, { code: 'RECAPTCHA_FAILED' });
-      }
-    }
-
-    // Use server-login endpoint with server secret
-    const loginPayload = {
-      email,
-      password,
+    const headers = {
+      'Content-Type': 'application/json',
     };
 
-    // Add server_secret if provided
-    if (serverSecret) {
-      loginPayload.server_secret = serverSecret;
+    // Forward authorization and CDJ headers from the request
+    if (req.headers['authorization']) {
+      headers['Authorization'] = req.headers['authorization'];
+    }
+    if (req.headers['x-client-id']) {
+      headers['X-Client-Id'] = req.headers['x-client-id'];
+    }
+    if (req.headers['x-client-secret']) {
+      headers['X-Client-Secret'] = req.headers['x-client-secret'];
     }
 
-    // Authenticate with CDJ SaaS API v1 using server-login
-    const response = await axios.post(`${baseUrl}/api/v1/auth/server-login`, loginPayload, {
+    const config = {
+      method: req.method,
+      url: fullUrl,
+      headers,
       timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Client-Id': clientId,
-        'X-Client-Secret': clientSecret,
-      },
-    });
+    };
 
-    sendSuccess(res, response.data, 'Authentication successful');
-  } catch (error) {
-    logger.error('CDJ SaaS auth failed:', error);
-    sendError(res, error.response?.data?.message || error.response?.data?.detail || error.message, error.response?.status || 500, { code: 'AUTH_FAILED' });
-  }
-});
-
-// Proxy: Fetch packages from CDJ SaaS API (legacy endpoint)
-app.post('/api/courier-depot/sync-packages', async (req, res) => {
-  try {
-    const config = apiConfigQueries.get();
-    const { accessToken } = req.body;
-
-    if (!config || !config.base_url || !config.user_id) {
-      return sendError(res, 'CDJ SaaS API not configured. Please configure API settings.', 400);
+    // Add request body for POST/PUT/PATCH
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      config.data = req.body;
     }
 
-    if (!accessToken) {
-      return sendError(res, 'Access token is required', 400);
+    // Forward query parameters
+    if (Object.keys(req.query).length > 0) {
+      config.params = req.query;
     }
 
-    // Fetch packages from CDJ SaaS API using user_id from config
-    const response = await axios.get(`${config.base_url}/userpackage/${config.user_id}`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: config.timeout || 30000,
-    });
+    const response = await axios(config);
 
-    const packages = response.data;
-
-    // Extract actual package count from nested structure
-    const packageList = packages?.packages?.packlist || packages?.packlist || packages;
-    const packageCount = Array.isArray(packageList) ? packageList.length : 0;
-
-    // Log the sync
-    apiSyncLogQueries.create({
-      status: 'success',
-      message: `Fetched ${packageCount} packages from CDJ SaaS API`,
-      syncedBy: req.body.syncedBy || 'System',
-      recordsCreated: 0,
-      recordsUpdated: 0,
-      errors: 0,
-    });
-
-    sendSuccess(res, { packages }, `Fetched ${packageCount} packages successfully`);
+    // Return the response as-is (no local storage)
+    res.status(response.status).json(response.data);
   } catch (error) {
-    logger.error('CDJ SaaS package fetch failed:', error);
-
-    // Log the failed sync
-    apiSyncLogQueries.create({
-      status: 'error',
-      message: `Failed to fetch packages: ${error.message}`,
-      syncedBy: req.body.syncedBy || 'System',
-      recordsCreated: 0,
-      recordsUpdated: 0,
-      errors: 1,
-    });
-
-    sendError(res, error.response?.data?.message || error.message, error.response?.status || 500, { code: 'SYNC_FAILED' });
-  }
-});
-
-// Proxy: Fetch all packages from CDJ SaaS API v1
-app.post('/api/courier-depot/packages', async (req, res) => {
-  try {
-    const { accessToken, clientId, clientSecret, baseUrl } = req.body;
-
-    if (!accessToken || !clientId || !clientSecret || !baseUrl) {
-      return sendError(res, 'Missing required credentials (accessToken, clientId, clientSecret, baseUrl)', 400);
-    }
-
-    // Fetch packages from CDJ SaaS API v1 (no trailing slash)
-    const response = await axios.get(`${baseUrl}/api/v1/packages`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Client-Id': clientId,
-        'X-Client-Secret': clientSecret,
-        'Content-Type': 'application/json',
-      },
-      timeout: 30000,
-    });
-
-    const data = response.data;
-    const packageCount = data.data ? data.data.length : 0;
-
-    // Log the sync
-    apiSyncLogQueries.create({
-      status: 'success',
-      message: `Fetched ${packageCount} packages from CDJ SaaS API v1`,
-      syncedBy: req.body.syncedBy || 'Auto-Sync',
-      recordsCreated: 0,
-      recordsUpdated: 0,
-      errors: 0,
-    });
-
-    sendSuccess(res, data, `Fetched ${packageCount} packages successfully`);
-  } catch (error) {
-    logger.error('CDJ SaaS packages fetch failed:', error);
-
-    // Log the failed sync
-    apiSyncLogQueries.create({
-      status: 'error',
-      message: `Failed to fetch packages: ${error.message}`,
-      syncedBy: req.body.syncedBy || 'Auto-Sync',
-      recordsCreated: 0,
-      recordsUpdated: 0,
-      errors: 1,
-    });
-
-    sendError(res, error.response?.data?.message || error.message, error.response?.status || 500, { code: 'SYNC_FAILED' });
+    logger.error('CDJ proxy error:', error.message);
+    const status = error.response?.status || 500;
+    const data = error.response?.data || { error: error.message };
+    res.status(status).json(data);
   }
 });
 

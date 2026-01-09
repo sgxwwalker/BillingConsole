@@ -28,6 +28,9 @@ export function runMigrations() {
     // Add archived column to shipment_logs (Migration 007)
     addArchivedColumnToShipmentLogs();
 
+    // Add parent_company_code column to packages (Migration 008)
+    addParentCompanyCodeColumn();
+
     console.log('All migrations completed');
   } catch (error) {
     console.error('Error running migrations:', error);
@@ -308,5 +311,24 @@ function addArchivedColumnToShipmentLogs() {
     }
   } catch (error) {
     console.error('  Error adding archived column:', error.message);
+  }
+}
+
+/**
+ * Migration 008: Add parent_company_code column to packages table
+ */
+function addParentCompanyCodeColumn() {
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(packages)").all();
+    const columnNames = tableInfo.map(col => col.name);
+
+    if (!columnNames.includes('parent_company_code')) {
+      db.exec(`ALTER TABLE packages ADD COLUMN parent_company_code TEXT DEFAULT 'RSC'`);
+      console.log('  Added parent_company_code column to packages table');
+    } else {
+      console.log('  parent_company_code column already exists in packages');
+    }
+  } catch (error) {
+    console.error('  Error adding parent_company_code column:', error.message);
   }
 }

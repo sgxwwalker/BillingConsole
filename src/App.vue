@@ -315,128 +315,7 @@
         </div>
       </section>
 
-      <section v-if="currentPage === 'packages'" class="panel full-page" id="packages">
-        <div class="packages-header">
-          <div class="packages-header-content">
-            <div>
-              <h1 class="packages-title">Packages</h1>
-              <p class="packages-subtitle">Packages synced with CDJ SaaS API</p>
-            </div>
-            <div class="packages-actions">
-              <div class="sync-status-indicator">
-                <span class="sync-dot" :class="syncDotClass"></span>
-                <span>{{ syncStatusLabel }}</span>
-              </div>
-              <button class="pill ghost" @click="manualRefresh" :disabled="isSyncing || isBackgroundSyncing">
-                {{ isSyncing ? 'Syncing...' : 'Refresh Now' }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="packages-grid">
-          <!-- API Connection Status Card -->
-          <div class="packages-card packages-card-status">
-            <div class="packages-card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
-            <div>
-              <p class="packages-card-label">API Connection</p>
-              <p class="packages-card-value">{{ apiConfigForm.accessToken ? 'Connected to CDJ SaaS' : 'Not Connected' }}</p>
-              <p class="packages-card-meta">{{ apiConfigForm.baseUrl }}</p>
-            </div>
-          </div>
-
-          <!-- Statistics Cards -->
-          <div class="packages-card">
-            <div class="packages-stat">
-              <p class="packages-stat-value">{{ allPackagesForPackagesPage.length }}</p>
-              <p class="packages-stat-label">Total Packages</p>
-            </div>
-          </div>
-
-          <div class="packages-card">
-            <div class="packages-stat">
-              <p class="packages-stat-value packages-stat-success">{{ syncedPackagesCount }}</p>
-              <p class="packages-stat-label">Synced</p>
-            </div>
-          </div>
-
-          <div class="packages-card">
-            <div class="packages-stat">
-              <p class="packages-stat-value packages-stat-warning">0</p>
-              <p class="packages-stat-label">Pending Push</p>
-            </div>
-          </div>
-
-          <!-- Last Sync Card -->
-          <div class="packages-card packages-card-sync">
-            <p class="packages-card-label">Last Sync</p>
-            <p class="packages-card-value">{{ lastSyncTime || 'Never' }}</p>
-            <p class="packages-card-meta">{{ lastSyncDetails || 'No sync performed yet' }}</p>
-          </div>
-        </div>
-
-        <!-- Search and Filters -->
-        <div class="packages-controls">
-          <input
-            v-model="packagesSearchQuery"
-            type="text"
-            class="packages-search"
-            placeholder="Search by tracking, customer, or code..."
-          />
-          <div class="packages-filters">
-            <button
-              v-for="filter in packageFilters"
-              :key="filter.key"
-              class="packages-filter-btn"
-              :class="{ active: packagesActiveFilter === filter.key }"
-              @click="packagesActiveFilter = filter.key"
-            >
-              {{ filter.label }} ({{ filter.count }})
-            </button>
-          </div>
-        </div>
-
-        <!-- Packages Table -->
-        <div class="packages-table-shell">
-          <table class="packages-table">
-            <thead>
-              <tr>
-                <th><input type="checkbox" /></th>
-                <th>Package ID</th>
-                <th>Tracking</th>
-                <th>Customer</th>
-                <th>Name on Package</th>
-                <th>Courier</th>
-                <th>Description</th>
-                <th>Weight</th>
-                <th>Status</th>
-                <th>Sync Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="!filteredPackagesForPage.length" class="empty">
-                <td colspan="10">No packages yet. Click "Pull from SaaS" to sync packages from CDJ SaaS.</td>
-              </tr>
-              <tr v-for="pkg in filteredPackagesForPage" :key="pkg.packageId">
-                <td><input type="checkbox" /></td>
-                <td><span class="packages-id">{{ pkg.packageId }}</span></td>
-                <td><span class="packages-tracking">{{ pkg.trackingNumber }}</span></td>
-                <td>{{ pkg.customer }}</td>
-                <td>{{ pkg.altName }}</td>
-                <td>{{ pkg.courier }}</td>
-                <td>{{ pkg.description }}</td>
-                <td>{{ pkg.weight ? pkg.weight + ' lb' : '' }}</td>
-                <td><span class="packages-status">{{ pkg.status || 'Unknown' }}</span></td>
-                <td><span class="packages-sync-badge packages-sync-synced">Synced</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <PackagesPage v-if="currentPage === 'packages'" />
 
       <section v-if="currentPage === 'summary'" class="panel full-page" id="summary">
         <div class="panel-head">
@@ -4230,6 +4109,7 @@ import shoppingCartIcon from "./assets/shopping-cart.png";
 import planeIcon from "./assets/plane-alt.png";
 import shipIcon from "./assets/ship.png";
 import { BaseModal } from "@/components";
+import PackagesPage from "./pages/PackagesPage.vue";
 
 const employees = reactive([
   { id: "emp-0", name: "Warren Walker", email: "warren@sgxpress.com", password: "admin123", photo: "", location: "", role: "full_control", customPermissions: null, active: 1, lastLogin: "2025-11-27 20:45:00" },
@@ -5058,20 +4938,11 @@ const apiUpdateForm = reactive({
 });
 const apiMessage = ref("");
 
-// CDJ SaaS API Integration (credentials now stored in backend)
-const courierDepotApi = reactive({
-  accessToken: null,
-  tokenExpiry: null,
-  isAuthenticated: false,
-});
-const apiSyncStatus = ref(""); // For showing sync messages
-const isSyncing = ref(false);
+// CDJ SaaS API Integration - REMOVED (using direct API calls)
 
 // Packages page state
 const packagesSearchQuery = ref("");
 const packagesActiveFilter = ref("all");
-const lastSyncTime = ref("");
-const lastSyncDetails = ref("");
 
 const profileMenuOpen = ref(false);
 const mobileMenuOpen = ref(false);
@@ -5164,12 +5035,7 @@ const isEditingApiConfig = ref(false);
 // Settings Page State - Maintenance Mode
 const maintenanceMode = ref(false);
 
-// Auto-Sync State for Packages Page
-const autoSyncEnabled = ref(true);
-const autoSyncIntervalId = ref(null);
-const isBackgroundSyncing = ref(false);
-const lastSyncTimestamp = ref(null);
-const SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+// Removed auto-sync functionality - using direct API calls only
 
 // Shipment Bin State
 const allShipmentLogs = ref([]);
@@ -5578,17 +5444,7 @@ const filteredPackagesForPage = computed(() => {
   return filtered;
 });
 
-// Sync status computed properties
-const syncDotClass = computed(() => ({
-  'active': autoSyncEnabled.value && !isBackgroundSyncing.value && !isSyncing.value,
-  'syncing': isBackgroundSyncing.value || isSyncing.value,
-}));
-
-const syncStatusLabel = computed(() => {
-  if (isSyncing.value || isBackgroundSyncing.value) return 'Syncing...';
-  if (!lastSyncTimestamp.value) return 'Not synced';
-  return `Last sync: ${formatTimeAgo(lastSyncTimestamp.value)}`;
-});
+// Sync status - REMOVED (using direct API calls only)
 
 const readyCountLabel = computed(() => `${stats.value.ready} ready`);
 
@@ -6672,250 +6528,7 @@ const resetApiUpdate = () => {
   apiMessage.value = "";
 };
 
-// CDJ SaaS API Functions (via backend proxy)
-const courierDepotSignin = async () => {
-  try {
-    const response = await fetch('http://localhost:4000/api/courier-depot/signin', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Authentication failed: ${response.status}`);
-    }
-
-    const result = await response.json();
-    courierDepotApi.accessToken = result.data.accessToken;
-    courierDepotApi.tokenExpiry = Date.now() + (24 * 60 * 60 * 1000); // Token valid for 24 hours
-    courierDepotApi.isAuthenticated = true;
-
-    return true;
-  } catch (error) {
-    console.error('CDJ SaaS signin error:', error);
-    apiSyncStatus.value = `Authentication failed: ${error.message}`;
-    courierDepotApi.isAuthenticated = false;
-    return false;
-  }
-};
-
-const syncPackagesFromCourierDepot = async () => {
-  if (isSyncing.value) return;
-
-  isSyncing.value = true;
-  apiSyncStatus.value = "Syncing packages...";
-
-  try {
-    // Check if token exists and is valid
-    if (!courierDepotApi.accessToken || Date.now() > courierDepotApi.tokenExpiry) {
-      apiSyncStatus.value = "Authenticating...";
-      const authenticated = await courierDepotSignin();
-      if (!authenticated) {
-        throw new Error('Authentication failed');
-      }
-    }
-
-    // Fetch packages via backend proxy
-    apiSyncStatus.value = "Fetching packages from CDJ SaaS...";
-    const response = await fetch('http://localhost:4000/api/courier-depot/sync-packages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        accessToken: courierDepotApi.accessToken,
-        syncedBy: currentUser.value?.name || 'System',
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Failed to fetch packages: ${response.status}`);
-    }
-
-    const result = await response.json();
-    const apiPackages = result.packages?.packlist || result.packages;
-
-    if (!Array.isArray(apiPackages)) {
-      throw new Error('Invalid response format - expected array of packages');
-    }
-
-    // Sort packages by date/ID to get most recent first
-    const sortedPackages = [...apiPackages].sort((a, b) => {
-      // Try to sort by date fields first (newest first)
-      const dateA = a.created_at || a.createdAt || a.warehouse_date || a.warehouseDate;
-      const dateB = b.created_at || b.createdAt || b.warehouse_date || b.warehouseDate;
-
-      if (dateA && dateB) {
-        return new Date(dateB) - new Date(dateA); // Descending (newest first)
-      }
-
-      // Fallback to ID (assuming higher ID = newer package)
-      return (b.id || 0) - (a.id || 0);
-    });
-
-    // Take the most recent 50 packages
-    const recentPackages = sortedPackages.slice(0, 50);
-
-    // Log package IDs for verification
-    console.log(`Fetching ${recentPackages.length} most recent packages:`);
-    console.log(`Package IDs: ${recentPackages.slice(0, 10).map(p => p.id).join(', ')}${recentPackages.length > 10 ? '...' : ''}`);
-
-    apiSyncStatus.value = `Processing ${recentPackages.length} packages...`;
-
-    // Map API packages to local package format
-    let imported = 0;
-    let updated = 0;
-
-    // Keep track of created customers to avoid duplicates
-    const createdCustomers = new Set();
-
-    // Process packages sequentially to persist to database
-    for (const apiPkg of recentPackages) {
-      try {
-        // Ensure customer exists in database before creating package
-        const customerName = apiPkg.userId?.name || 'Unknown Customer';
-        const customerId = customerName.replace(/\s+/g, '-').toUpperCase();
-
-        if (!createdCustomers.has(customerId)) {
-          // Check if customer exists, create if not
-          const customerExists = await fetch(`http://localhost:4000/api/customers`)
-            .then(r => r.json())
-            .then(data => data.customers?.some(c => c.id === customerId))
-            .catch(() => false);
-
-          if (!customerExists) {
-            // Create new customer
-            await fetch('http://localhost:4000/api/customers', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                id: customerId,
-                name: customerName,
-                email: `${customerId.toLowerCase()}@customer.com`,
-                phone: '',
-                address: '',
-              }),
-            }).catch(err => console.error(`Failed to create customer ${customerId}:`, err));
-          }
-          createdCustomers.add(customerId);
-        }
-
-        // Check if package already exists in database
-        const existingPkg = await fetch(`http://localhost:4000/api/packages/${apiPkg.trackingNumber || apiPkg.id}`).then(r => r.ok ? r.json() : null).catch(() => null);
-
-        const mappedPackage = {
-          packageId: String(apiPkg.id),
-          externalPackageId: String(apiPkg.id),
-          customerId: customerId,
-          trackingNumber: apiPkg.trackingNumber || '', // Actual tracking number
-          weight: apiPkg.weight || 0,
-          description: apiPkg.description || '',
-          cost: apiPkg.value || apiPkg.cost || 0,
-          status: apiPkg.status || 'Processing in Office',
-          billingStatus: apiPkg.paid ? 'Closed' : 'Open',
-          paymentMethod: apiPkg.packageMethod || 'Cash',
-          freightType: apiPkg.type || 'AIR',
-          dateUpdated: new Date().toISOString().split('T')[0],
-          updatedBy: 'CDJ SaaS API',
-          collected: apiPkg.packageRecieved || false,
-          archived: false, // Don't auto-archive synced packages
-          // New CDJ SaaS fields
-          altName: apiPkg.altName || '',
-          reason: apiPkg.reason || '',
-          seller: apiPkg.seller || '',
-          length: apiPkg.length || 0,
-          width: apiPkg.width || 0,
-          height: apiPkg.height || 0,
-          cubicFeet: apiPkg.cubicFeet || 0,
-          location: apiPkg.location || '',
-          invoiceUrl: apiPkg.invoceUrl || '', // Note: API has typo "invoceUrl"
-          packageImageUrl: apiPkg.packageImg || '',
-          preAlert: apiPkg.preAlert || false,
-          emailSent: apiPkg.emailSent || false,
-          paid: apiPkg.paid || false,
-          warehouseDate: apiPkg.warehousedate || null,
-        };
-
-        if (existingPkg) {
-          // Update existing package in database
-          await fetch(`http://localhost:4000/api/packages/${mappedPackage.packageId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(mappedPackage),
-          });
-          updated++;
-        } else {
-          // Create new package in database
-          await fetch('http://localhost:4000/api/packages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(mappedPackage),
-          });
-          imported++;
-        }
-
-        apiSyncStatus.value = `Processing... ${imported + updated}/${recentPackages.length}`;
-      } catch (pkgError) {
-        console.error(`Error processing package ${apiPkg.id}:`, pkgError);
-      }
-    }
-
-    apiSyncStatus.value = `Sync complete! Imported ${imported} new packages, updated ${updated} existing packages. Reloading...`;
-
-    // Reload packages from backend to update the UI
-    await loadPackagesFromBackend();
-
-    apiSyncStatus.value = `Sync complete! Imported ${imported} new packages, updated ${updated} existing packages.`;
-    showToast(`Sync complete! Imported ${imported} new, updated ${updated} packages`, 'success');
-    setTimeout(() => { apiSyncStatus.value = ""; }, 5000);
-
-  } catch (error) {
-    console.error('Sync error:', error);
-    apiSyncStatus.value = `Sync failed: ${error.message}`;
-    showToast(`Sync failed: ${error.message}`, 'error');
-    setTimeout(() => { apiSyncStatus.value = ""; }, 5000);
-  } finally {
-    isSyncing.value = false;
-  }
-};
-
-// API Sync function for Packages page
-const apiSyncPackages = async () => {
-  if (isSyncing.value) return;
-
-  try {
-    // Call the main sync function
-    await syncPackagesFromCourierDepot();
-
-    // Update last sync time and details for Packages page
-    const now = new Date();
-    lastSyncTime.value = now.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-
-    // Extract sync results from apiSyncStatus
-    const statusMatch = apiSyncStatus.value.match(/Imported (\d+) new packages, updated (\d+) existing packages/);
-    if (statusMatch) {
-      const imported = parseInt(statusMatch[1]);
-      const updated = parseInt(statusMatch[2]);
-      lastSyncDetails.value = `Pulled: ${imported} added, ${updated} updated`;
-    } else {
-      lastSyncDetails.value = 'Sync completed successfully';
-    }
-
-  } catch (error) {
-    console.error('Packages sync error:', error);
-    lastSyncDetails.value = `Sync failed: ${error.message}`;
-  }
-};
+// CDJ SaaS API Functions - REMOVED (using direct API calls in PackagesPage/InvoicePage)
 
 const login = async () => {
   // Find employee by username (name) or email
@@ -8524,192 +8137,7 @@ const triggerApiSync = async () => {
   }, 8000);
 };
 
-// ==================== AUTO-SYNC FUNCTIONS ====================
-
-// Map API status to local status
-const mapApiStatus = (pkg) => {
-  if (pkg.paid) return 'Delivered';
-  if (pkg.package_received) return 'Ready';
-  return 'In Transit';
-};
-
-// Process packages from API and update local state
-const processApiPackages = (apiPackages) => {
-  let created = 0;
-  let updated = 0;
-
-  apiPackages.forEach(apiPkg => {
-    // Build courier/customer name from user object
-    const courierName = `${apiPkg.user?.first_name || ''} ${apiPkg.user?.last_name || ''}`.trim() || 'Unknown';
-
-    const packageData = {
-      packageId: String(apiPkg.id),
-      trackingNumber: apiPkg.tracking_number || '',
-      customer: courierName,
-      courier: courierName,
-      altName: apiPkg.alternative_name || '',
-      description: apiPkg.description || '',
-      weight: apiPkg.weight || 0,
-      cost: apiPkg.value || 0,
-      seller: apiPkg.seller_name || '',
-      freightType: apiPkg.package_type || 'AIR',
-      status: mapApiStatus(apiPkg),
-      customerEmail: apiPkg.user?.email || '',
-      mailbox: apiPkg.user?.mail_box_number || '',
-      billingStatus: apiPkg.paid ? 'Closed' : 'Open',
-      dimensions: {
-        length: apiPkg.length || 0,
-        width: apiPkg.width || 0,
-        height: apiPkg.height || 0,
-      },
-      createdAt: apiPkg.created_at ? new Date(apiPkg.created_at * 1000).toISOString() : new Date().toISOString(),
-      updatedAt: apiPkg.updated_at ? new Date(apiPkg.updated_at * 1000).toISOString() : new Date().toISOString(),
-      syncedFromApi: true,
-    };
-
-    // Update or add package - find by trackingNumber (correct field name)
-    const existingIndex = packages.value.findIndex(p => p.trackingNumber === apiPkg.tracking_number);
-    if (existingIndex >= 0) {
-      packages.value[existingIndex] = { ...packages.value[existingIndex], ...packageData };
-      updated++;
-    } else {
-      packages.value.push(packageData);
-      created++;
-    }
-  });
-
-  return { created, updated };
-};
-
-// Fetch packages from CDJ SaaS API via backend proxy (avoids CORS)
-const fetchPackagesFromCourierDepot = async (showLoading = false) => {
-  if (showLoading) isSyncing.value = true;
-  else isBackgroundSyncing.value = true;
-
-  try {
-    // Re-authenticate if no token
-    if (!apiConfigForm.accessToken) {
-      await testApiConnection();
-      if (!apiConfigForm.accessToken) {
-        throw new Error('Failed to authenticate with API');
-      }
-    }
-
-    // Use backend proxy to avoid CORS issues
-    const response = await fetch('http://localhost:4000/api/courier-depot/packages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        accessToken: apiConfigForm.accessToken,
-        clientId: apiConfigForm.clientId,
-        clientSecret: apiConfigForm.clientSecret,
-        baseUrl: apiConfigForm.baseUrl,
-        syncedBy: currentUser.value?.name || 'Auto-Sync',
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      // Check if it's a 401 - token expired
-      if (response.status === 401 || result.message?.includes('401')) {
-        apiConfigForm.accessToken = '';
-        await testApiConnection();
-        if (apiConfigForm.accessToken) {
-          return fetchPackagesFromCourierDepot(showLoading);
-        }
-        throw new Error('Authentication failed');
-      }
-      throw new Error(result.message || result.error || 'Failed to fetch packages');
-    }
-
-    // The proxy returns { success, data: { success, data: [...packages] }, message }
-    const apiData = result.data;
-    if (apiData?.success && apiData?.data) {
-      const { created, updated } = processApiPackages(apiData.data);
-      lastSyncTimestamp.value = new Date();
-
-      // Add sync log
-      apiSyncLogs.value.unshift({
-        id: Date.now(),
-        status: 'success',
-        message: `Synced ${apiData.data.length} packages from API`,
-        synced_by: currentUser.value?.name || 'Auto-Sync',
-        records_created: created,
-        records_updated: updated,
-        errors: 0,
-        timestamp: new Date().toISOString(),
-      });
-
-      if (showLoading) {
-        showToast(`Synced ${apiData.data.length} packages (${created} new, ${updated} updated)`, 'success');
-      }
-    } else {
-      throw new Error(apiData?.message || apiData?.detail || 'Failed to fetch packages');
-    }
-  } catch (error) {
-    console.error('Sync failed:', error);
-    if (showLoading) {
-      showToast(`Sync failed: ${error.message}`, 'error');
-    }
-
-    // Add error log
-    apiSyncLogs.value.unshift({
-      id: Date.now(),
-      status: 'error',
-      message: error.message,
-      synced_by: currentUser.value?.name || 'Auto-Sync',
-      records_created: 0,
-      records_updated: 0,
-      errors: 1,
-      timestamp: new Date().toISOString(),
-    });
-  } finally {
-    isSyncing.value = false;
-    isBackgroundSyncing.value = false;
-  }
-};
-
-// Start auto-sync polling
-const startAutoSync = () => {
-  if (autoSyncIntervalId.value) return;
-
-  // Immediate fetch on start
-  fetchPackagesFromCourierDepot(false);
-
-  // Set up 15-minute interval
-  autoSyncIntervalId.value = setInterval(() => {
-    if (!isSyncing.value && autoSyncEnabled.value) {
-      fetchPackagesFromCourierDepot(false);
-    }
-  }, SYNC_INTERVAL);
-};
-
-// Stop auto-sync polling
-const stopAutoSync = () => {
-  if (autoSyncIntervalId.value) {
-    clearInterval(autoSyncIntervalId.value);
-    autoSyncIntervalId.value = null;
-  }
-};
-
-// Manual refresh button handler
-const manualRefresh = () => {
-  fetchPackagesFromCourierDepot(true);
-};
-
-// Format time ago for display
-const formatTimeAgo = (date) => {
-  if (!date) return 'Never';
-  const seconds = Math.floor((new Date() - date) / 1000);
-  if (seconds < 60) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ago`;
-};
+// ==================== AUTO-SYNC REMOVED - USING DIRECT API CALLS ONLY ====================
 
 // Toggle maintenance mode
 const toggleMaintenanceModeFunc = async () => {
@@ -8733,69 +8161,7 @@ const toggleMaintenanceModeFunc = async () => {
   }
 };
 
-// Load packages and customers from backend database
-const loadPackagesFromBackend = async () => {
-  try {
-    console.log('Loading packages from backend...');
-    const response = await fetch('http://localhost:4000/api/customers');
-    const data = await response.json();
-
-    if (data.success && data.customers) {
-      console.log(`Loaded ${data.customers.length} customers from backend`);
-
-      // Transform backend data to match frontend structure
-      // Backend already returns camelCase, so just pass through with defaults
-      const transformedCustomers = data.customers.map(customer => ({
-        id: customer.id,
-        name: customer.name,
-        packages: (customer.packages || []).map(pkg => ({
-          packageId: pkg.packageId,
-          trackingNumber: pkg.trackingNumber || '',
-          status: pkg.status || 'Processing in Office',
-          weight: pkg.weight || 0,
-          dateUpdated: pkg.dateUpdated || new Date().toISOString().split('T')[0],
-          description: pkg.description || '',
-          cost: pkg.cost || 0,
-          paymentMethod: pkg.paymentMethod || '',
-          updatedBy: pkg.updatedBy || '',
-          billingStatus: pkg.billingStatus || 'Open',
-          amountPaid: pkg.amountPaid || 0,
-          freightType: pkg.freightType || 'Air',
-          notes: pkg.notes || [],
-          collected: Boolean(pkg.collected),
-          deleted: Boolean(pkg.deleted),
-          archived: Boolean(pkg.archived),
-          // Additional CDJ SaaS fields
-          altName: pkg.altName || '',
-          reason: pkg.reason || '',
-          seller: pkg.seller || '',
-          length: pkg.length || 0,
-          width: pkg.width || 0,
-          height: pkg.height || 0,
-          cubicFeet: pkg.cubicFeet || 0,
-          location: pkg.location || '',
-          invoiceUrl: pkg.invoiceUrl || '',
-          packageImageUrl: pkg.packageImageUrl || '',
-          preAlert: Boolean(pkg.preAlert),
-          emailSent: Boolean(pkg.emailSent),
-          paid: Boolean(pkg.paid),
-          warehouseDate: pkg.warehouseDate || null,
-        }))
-      }));
-
-      customers.value = transformedCustomers;
-      console.log(`Packages loaded successfully. Total packages: ${transformedCustomers.reduce((sum, c) => sum + c.packages.length, 0)}`);
-    } else {
-      console.error('Failed to load customers:', data.error || 'Unknown error');
-      // Keep using the hardcoded data if backend fails
-      customers.value = clone(initialCustomers);
-    }
-  } catch (error) {
-    console.error('Error loading packages from backend:', error);
-    // Keep using the hardcoded data if backend fails
-    customers.value = clone(initialCustomers);
-  }
-};
+// Load packages - REMOVED (using direct API calls only, no local storage)
 
 // Load Daily Summary data from backend
 const loadDailySummary = async () => {
@@ -9068,60 +8434,21 @@ const bulkDeleteDeliveryRequests = async () => {
 onMounted(() => {
   document.addEventListener("click", handleClickAway);
   document.addEventListener("click", handleClickOutside);
-  loadPackagesFromBackend();
   loadBillingItems();
   loadBillingStats();
   loadDailySummary();
   loadOrders();
   loadDeliveryRequests();
   loadPageVisibility();
-  // Start auto-sync for packages from CDJ SaaS API
-  startAutoSync();
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleClickAway);
   document.removeEventListener("click", handleClickOutside);
-  // Stop auto-sync when component unmounts
-  stopAutoSync();
 });
 </script>
 
 <style>
-/* Sync Status Indicator Styles */
-.sync-status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  font-size: 13px;
-  color: white;
-}
-
-.sync-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #6b7280;
-}
-
-.sync-dot.active {
-  background: #10b981;
-  animation: pulse 2s infinite;
-}
-
-.sync-dot.syncing {
-  background: #f59e0b;
-  animation: pulse 0.5s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
 /* Packages Page Styles */
 .packages-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
