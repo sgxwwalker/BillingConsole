@@ -73,6 +73,7 @@
         <nav class="top-links">
           <button v-if="pageVisibility.dashboard.enabled" class="top-link" :class="{ active: currentPage === 'dashboard' }" @click="goTo('dashboard')">Dashboard</button>
           <button v-if="pageVisibility.packages.enabled" class="top-link" :class="{ active: currentPage === 'packages' }" @click="goTo('packages')">Packages</button>
+          <button v-if="pageVisibility.customers.enabled" class="top-link" :class="{ active: currentPage === 'customers' }" @click="goTo('customers')">Customers</button>
           <button v-if="pageVisibility['shipment-bin'].enabled" class="top-link" :class="{ active: currentPage === 'shipment-bin' }" @click="goTo('shipment-bin')">Shipment Bin</button>
           <button v-if="pageVisibility.orders.enabled" class="top-link" :class="{ active: currentPage === 'orders' }" @click="goTo('orders')">SGX Order</button>
           <button v-if="pageVisibility['delivery-requests'].enabled" class="top-link" :class="{ active: currentPage === 'delivery-requests' }" @click="goTo('delivery-requests')">Delivery Request</button>
@@ -102,6 +103,7 @@
       <div class="mobile-menu-links">
         <button v-if="pageVisibility.dashboard.enabled" @click="goTo('dashboard'); mobileMenuOpen = false" :class="{ active: currentPage === 'dashboard' }">Dashboard</button>
         <button v-if="pageVisibility.packages.enabled" @click="goTo('packages'); mobileMenuOpen = false" :class="{ active: currentPage === 'packages' }">Packages</button>
+        <button v-if="pageVisibility.customers.enabled" @click="goTo('customers'); mobileMenuOpen = false" :class="{ active: currentPage === 'customers' }">Customers</button>
         <button v-if="pageVisibility['shipment-bin'].enabled" @click="goTo('shipment-bin'); mobileMenuOpen = false" :class="{ active: currentPage === 'shipment-bin' }">Shipment Bin</button>
         <button v-if="pageVisibility.orders.enabled" @click="goTo('orders'); mobileMenuOpen = false" :class="{ active: currentPage === 'orders' }">SGX Order</button>
         <button v-if="pageVisibility['delivery-requests'].enabled" @click="goTo('delivery-requests'); mobileMenuOpen = false" :class="{ active: currentPage === 'delivery-requests' }">Delivery Request</button>
@@ -316,6 +318,8 @@
       </section>
 
       <PackagesPage v-if="currentPage === 'packages'" />
+
+      <CustomersPage v-if="currentPage === 'customers'" />
 
       <section v-if="currentPage === 'summary'" class="panel full-page" id="summary">
         <div class="panel-head">
@@ -4110,6 +4114,7 @@ import planeIcon from "./assets/plane-alt.png";
 import shipIcon from "./assets/ship.png";
 import { BaseModal } from "@/components";
 import PackagesPage from "./pages/PackagesPage.vue";
+import CustomersPage from "./pages/CustomersPage.vue";
 
 const employees = reactive([
   { id: "emp-0", name: "Warren Walker", email: "warren@sgxpress.com", password: "admin123", photo: "", location: "", role: "full_control", customPermissions: null, active: 1, lastLogin: "2025-11-27 20:45:00" },
@@ -4506,6 +4511,7 @@ const settings = reactive({ notifyEmail: true, notifySms: false, notifyDesktop: 
 const pageVisibility = reactive({
   dashboard: { enabled: true, label: 'Dashboard', description: 'Main dashboard with billing console and statistics' },
   packages: { enabled: true, label: 'Packages', description: 'Package management and tracking' },
+  customers: { enabled: true, label: 'Customers', description: 'Customer management from CDJ API' },
   'shipment-bin': { enabled: true, label: 'Shipment Bin', description: 'Shipment bin management and logs' },
   orders: { enabled: true, label: 'SGX Order', description: 'Customer orders management' },
   'delivery-requests': { enabled: true, label: 'Delivery Request', description: 'Customer delivery requests management' },
@@ -5479,9 +5485,9 @@ const can = (perm) => {
 const hasPermission = can; // Alias for template usage
 const isAdmin = computed(() => can('admin'));
 const allowedPages = computed(() => {
-  if (isAdmin.value) return ["dashboard", "shipment-bin", "orders", "delivery-requests", "packages", "summary", "api", "profile", "settings", "admin"];
-  if (currentRole.value === "editor") return ["dashboard", "shipment-bin", "orders", "delivery-requests", "packages", "summary", "profile"];
-  return ["dashboard", "shipment-bin", "summary", "profile", "orders", "delivery-requests", "packages"];
+  if (isAdmin.value) return ["dashboard", "shipment-bin", "orders", "delivery-requests", "packages", "customers", "summary", "api", "profile", "settings", "admin"];
+  if (currentRole.value === "editor") return ["dashboard", "shipment-bin", "orders", "delivery-requests", "packages", "customers", "summary", "profile"];
+  return ["dashboard", "shipment-bin", "summary", "profile", "orders", "delivery-requests", "packages", "customers"];
 });
 
 const dailySummary = computed(() => {
