@@ -222,7 +222,7 @@
 
     <div class="mobile-overlay" :class="{ open: mobileMenuOpen }" @click="mobileMenuOpen = false"></div>
 
-    <main class="content with-sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }"
+    <main class="content with-sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
       <section v-if="currentPage === 'dashboard'" class="panel" id="dashboard">
         <header class="topbar">
           <div class="titles">
