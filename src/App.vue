@@ -59,60 +59,170 @@
   </div>
 
   <div v-else class="app-shell">
-    <header class="top-nav">
-      <div class="nav-left">
-        <!-- Hamburger menu button (mobile only) -->
-        <button class="hamburger-btn" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu">
-          <span class="hamburger-line"></span>
-          <span class="hamburger-line"></span>
-          <span class="hamburger-line"></span>
-        </button>
-        <div class="brand-mark small">
+    <!-- Horizontal Sidebar Navigation -->
+    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
           <img :src="logo" alt="SG Xpress Shipping logo" />
         </div>
-        <nav class="top-links">
-          <button v-if="pageVisibility.dashboard.enabled" class="top-link" :class="{ active: currentPage === 'dashboard' }" @click="goTo('dashboard')">Dashboard</button>
-          <button v-if="pageVisibility.packages.enabled" class="top-link" :class="{ active: currentPage === 'packages' }" @click="goTo('packages')">Packages</button>
-          <button v-if="pageVisibility.customers.enabled" class="top-link" :class="{ active: currentPage === 'customers' }" @click="goTo('customers')">Customers</button>
-          <button v-if="pageVisibility['shipment-bin'].enabled" class="top-link" :class="{ active: currentPage === 'shipment-bin' }" @click="goTo('shipment-bin')">Shipment Bin</button>
-          <button v-if="pageVisibility.orders.enabled" class="top-link" :class="{ active: currentPage === 'orders' }" @click="goTo('orders')">SGX Order</button>
-          <button v-if="pageVisibility['delivery-requests'].enabled" class="top-link" :class="{ active: currentPage === 'delivery-requests' }" @click="goTo('delivery-requests')">Delivery Request</button>
-          <button v-if="pageVisibility.summary.enabled" class="top-link" :class="{ active: currentPage === 'summary' }" @click="goTo('summary')">Daily Summary</button>
-          <button v-if="isAdmin" class="top-link" :class="{ active: currentPage === 'settings' }" @click="goTo('settings')">Settings</button>
-        </nav>
+        <h2 class="sidebar-title" v-if="!sidebarCollapsed">SGX Console</h2>
+        <button class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" aria-label="Toggle sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+        </button>
       </div>
-      <div class="nav-right">
-        <div class="profile-chip" @click="profileMenuOpen = !profileMenuOpen">
-          <div class="avatar"></div>
-          <div class="profile-name">{{ currentUser?.name || 'Profile' }}</div>
-        </div>
-        <div class="profile-menu" v-if="profileMenuOpen">
-          <button type="button" @click="goTo('profile')">Profile</button>
-          <button type="button" @click="signOut">Sign Out</button>
-        </div>
-      </div>
-    </header>
 
-    <!-- Mobile Navigation Menu -->
-    <div class="mobile-menu-overlay" :class="{ open: mobileMenuOpen }" @click="mobileMenuOpen = false"></div>
-    <nav class="mobile-menu" :class="{ open: mobileMenuOpen }">
-      <div class="mobile-menu-header">
-        <span class="mobile-menu-title">Menu</span>
-        <button class="mobile-menu-close" @click="mobileMenuOpen = false">&times;</button>
-      </div>
-      <div class="mobile-menu-links">
-        <button v-if="pageVisibility.dashboard.enabled" @click="goTo('dashboard'); mobileMenuOpen = false" :class="{ active: currentPage === 'dashboard' }">Dashboard</button>
-        <button v-if="pageVisibility.packages.enabled" @click="goTo('packages'); mobileMenuOpen = false" :class="{ active: currentPage === 'packages' }">Packages</button>
-        <button v-if="pageVisibility.customers.enabled" @click="goTo('customers'); mobileMenuOpen = false" :class="{ active: currentPage === 'customers' }">Customers</button>
-        <button v-if="pageVisibility['shipment-bin'].enabled" @click="goTo('shipment-bin'); mobileMenuOpen = false" :class="{ active: currentPage === 'shipment-bin' }">Shipment Bin</button>
-        <button v-if="pageVisibility.orders.enabled" @click="goTo('orders'); mobileMenuOpen = false" :class="{ active: currentPage === 'orders' }">SGX Order</button>
-        <button v-if="pageVisibility['delivery-requests'].enabled" @click="goTo('delivery-requests'); mobileMenuOpen = false" :class="{ active: currentPage === 'delivery-requests' }">Delivery Request</button>
-        <button v-if="pageVisibility.summary.enabled" @click="goTo('summary'); mobileMenuOpen = false" :class="{ active: currentPage === 'summary' }">Daily Summary</button>
-        <button v-if="isAdmin" @click="goTo('settings'); mobileMenuOpen = false" :class="{ active: currentPage === 'settings' }">Settings</button>
-      </div>
-    </nav>
+      <nav class="sidebar-nav">
+        <button
+          v-if="pageVisibility.dashboard.enabled"
+          class="sidebar-link"
+          :class="{ active: currentPage === 'dashboard' }"
+          @click="goTo('dashboard')"
+          :title="sidebarCollapsed ? 'Dashboard' : ''"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span v-if="!sidebarCollapsed">Dashboard</span>
+        </button>
 
-    <main class="content with-top-nav">
+        <button
+          v-if="pageVisibility.packages.enabled"
+          class="sidebar-link"
+          :class="{ active: currentPage === 'packages' }"
+          @click="goTo('packages')"
+          :title="sidebarCollapsed ? 'Packages' : ''"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+            <line x1="12" y1="22.08" x2="12" y2="12"/>
+          </svg>
+          <span v-if="!sidebarCollapsed">Packages</span>
+        </button>
+
+        <button
+          v-if="pageVisibility.customers.enabled"
+          class="sidebar-link"
+          :class="{ active: currentPage === 'customers' }"
+          @click="goTo('customers')"
+          :title="sidebarCollapsed ? 'Customers' : ''"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span v-if="!sidebarCollapsed">Customers</span>
+        </button>
+
+        <button
+          v-if="pageVisibility['shipment-bin'].enabled"
+          class="sidebar-link"
+          :class="{ active: currentPage === 'shipment-bin' }"
+          @click="goTo('shipment-bin')"
+          :title="sidebarCollapsed ? 'Shipment Bin' : ''"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <span v-if="!sidebarCollapsed">Shipment Bin</span>
+        </button>
+
+        <button
+          v-if="pageVisibility.orders.enabled"
+          class="sidebar-link"
+          :class="{ active: currentPage === 'orders' }"
+          @click="goTo('orders')"
+          :title="sidebarCollapsed ? 'SGX Order' : ''"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          <span v-if="!sidebarCollapsed">SGX Order</span>
+        </button>
+
+        <button
+          v-if="pageVisibility['delivery-requests'].enabled"
+          class="sidebar-link"
+          :class="{ active: currentPage === 'delivery-requests' }"
+          @click="goTo('delivery-requests')"
+          :title="sidebarCollapsed ? 'Delivery Request' : ''"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="1" y="3" width="15" height="13"/>
+            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+            <circle cx="5.5" cy="18.5" r="2.5"/>
+            <circle cx="18.5" cy="18.5" r="2.5"/>
+          </svg>
+          <span v-if="!sidebarCollapsed">Delivery Request</span>
+        </button>
+
+        <button
+          v-if="pageVisibility.summary.enabled"
+          class="sidebar-link"
+          :class="{ active: currentPage === 'summary' }"
+          @click="goTo('summary')"
+          :title="sidebarCollapsed ? 'Daily Summary' : ''"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="1" x2="12" y2="23"/>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          <span v-if="!sidebarCollapsed">Daily Summary</span>
+        </button>
+
+        <button
+          v-if="isAdmin"
+          class="sidebar-link"
+          :class="{ active: currentPage === 'settings' }"
+          @click="goTo('settings')"
+          :title="sidebarCollapsed ? 'Settings' : ''"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v6m0 6v6m5.66-13.66l-4.24 4.24m0 5.66l-4.24 4.24M23 12h-6m-6 0H1m18.66 5.66l-4.24-4.24m0-5.66l-4.24-4.24"/>
+          </svg>
+          <span v-if="!sidebarCollapsed">Settings</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="sidebar-link" @click="goTo('profile')" :title="sidebarCollapsed ? 'Profile' : ''">
+          <div class="avatar-small"></div>
+          <span v-if="!sidebarCollapsed">{{ currentUser?.name || 'Profile' }}</span>
+        </button>
+        <button class="sidebar-link" @click="signOut" :title="sidebarCollapsed ? 'Sign Out' : ''">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          <span v-if="!sidebarCollapsed">Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Mobile Hamburger and Overlay -->
+    <button class="mobile-hamburger" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu">
+      <span class="hamburger-line"></span>
+      <span class="hamburger-line"></span>
+      <span class="hamburger-line"></span>
+    </button>
+
+    <div class="mobile-overlay" :class="{ open: mobileMenuOpen }" @click="mobileMenuOpen = false"></div>
+
+    <main class="content with-sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }"
       <section v-if="currentPage === 'dashboard'" class="panel" id="dashboard">
         <header class="topbar">
           <div class="titles">
@@ -4952,6 +5062,7 @@ const packagesActiveFilter = ref("all");
 
 const profileMenuOpen = ref(false);
 const mobileMenuOpen = ref(false);
+const sidebarCollapsed = ref(false);
 const viewPackage = ref(null);
 const adminEditId = ref("");
 const adminUserForm = reactive({
